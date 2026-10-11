@@ -7,9 +7,18 @@ using ModelContextProtocol.Server;
 
 namespace HuePilot.Mcp;
 
+/// <summary>
+/// Exposes a narrow set of Hue discovery and control tools to MCP clients.
+/// Every mutation is resolved against current Bridge resources and reuses HuePilot's application validator.
+/// </summary>
 [McpServerToolType]
 public static class HueMcpTools
 {
+    /// <summary>Returns currently discovered rooms, lights, scenes, and their group associations without changing device state.</summary>
+    /// <param name="type">Optional resource type filter: all, room, light, or scene.</param>
+    /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
+    /// <param name="cancellationToken">Cancels the Bridge lookup if the MCP client cancels the request.</param>
+    /// <returns>JSON describing each matching resource and its room/zone associations.</returns>
     [McpServerTool(Name = "list_hue_resources", Title = "List Hue rooms, lights, and scenes"),
      Description("Read-only. List Hue resources and their IDs. Use a returned resource ID with the control tools; never guess an ID.")]
     public static async Task<string> ListHueResources(
@@ -43,6 +52,12 @@ public static class HueMcpTools
         }
     }
 
+    /// <summary>Turns one currently discovered light or room on or off.</summary>
+    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="on"><see langword="true"/> to turn on; <see langword="false"/> to turn off.</param>
+    /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
+    /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
+    /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
     [McpServerTool(Name = "set_hue_power", Title = "Turn a Hue light or room on or off"),
      Description("Changes power for one discovered Hue light or room. This controls real devices. Call list_hue_resources first and use its exact ID.")]
     public static Task<string> SetHuePower(
@@ -52,6 +67,12 @@ public static class HueMcpTools
         CancellationToken cancellationToken = default) =>
         ApplyAsync(resourceId, on ? HueOperation.TurnOn : HueOperation.TurnOff, null, null, null, ["light", "room"], hueService, cancellationToken);
 
+    /// <summary>Sets brightness on one currently discovered light or room.</summary>
+    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="brightnessPercent">Whole-number brightness from 1 through 100.</param>
+    /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
+    /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
+    /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
     [McpServerTool(Name = "set_hue_brightness", Title = "Set Hue brightness"),
      Description("Sets brightness on one discovered Hue light or room to a whole-number percentage from 1 to 100. This controls real devices. Use an exact ID from list_hue_resources.")]
     public static Task<string> SetHueBrightness(
@@ -61,6 +82,12 @@ public static class HueMcpTools
         CancellationToken cancellationToken = default) =>
         ApplyAsync(resourceId, HueOperation.SetBrightness, brightnessPercent, null, null, ["light", "room"], hueService, cancellationToken);
 
+    /// <summary>Sets a supported named color on one currently discovered light or room.</summary>
+    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="color">An allowlisted color name accepted by the application validator.</param>
+    /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
+    /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
+    /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
     [McpServerTool(Name = "set_hue_color", Title = "Set Hue color"),
      Description("Sets a discovered Hue light or room to a supported named color: red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, or cool white. This controls real devices. Use an exact ID from list_hue_resources.")]
     public static Task<string> SetHueColor(
@@ -70,6 +97,12 @@ public static class HueMcpTools
         CancellationToken cancellationToken = default) =>
         ApplyAsync(resourceId, HueOperation.SetColor, null, color, null, ["light", "room"], hueService, cancellationToken);
 
+    /// <summary>Activates a discovered scene on the room or zone associated with that scene.</summary>
+    /// <param name="sceneId">Exact scene ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="roomId">Optional room ID used to verify the scene's room association.</param>
+    /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
+    /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
+    /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
     [McpServerTool(Name = "activate_hue_scene", Title = "Activate an existing Hue scene"),
      Description("Activates one existing Hue scene on its associated room or zone. This controls real devices. Call list_hue_resources with type scene and use the exact ID. Optionally provide roomId to verify the scene is associated with that room.")]
     public static Task<string> ActivateHueScene(
@@ -109,6 +142,7 @@ public static class HueMcpTools
                     group.Id.Equals(requiredRoomId, StringComparison.OrdinalIgnoreCase) && group.Type.Equals("room", StringComparison.OrdinalIgnoreCase)))
                 return "Not applied: that scene is not associated with the requested room. List resources to see its room associations.";
 
+            // Keep MCP writes on the same validation path as chat and tool-calling proposals.
             var intent = new HueIntent(operation, target.Name, target.Type, brightnessPercent, color);
             if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))
                 return $"Not applied: {validationError}";
