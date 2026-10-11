@@ -13,6 +13,44 @@ docs/                       Requirements, architecture decisions, and guides
 src/HuePilot.sln             All .NET projects
 ```
 
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Web["HuePilot Blazor Web App"]
+        Chat["Chat UI"] --> Conversation["HueConversationService<br/>Plan → validate → display → execute"]
+        Resources["Resources page"] --> HuePort
+        Conversation --> Parser{"IIntentParser"}
+        Parser --> Structured["Structured JSON parser"]
+        Parser --> ToolPlanner["Bounded tool-calling planner"]
+        Structured <--> OpenAI["OpenAI API"]
+        ToolPlanner <--> OpenAI
+        Conversation --> HuePort["IHueService"]
+    end
+
+    subgraph AgentHost["Agent host"]
+        Agent["OpenCode agent"] <--> MCP["HuePilot MCP<br/>loopback HTTP or stdio"]
+        MCP --> MCPTools["List, validate, and control tools"]
+        MCPTools --> MCPHuePort["IHueService"]
+    end
+
+    subgraph HueIntegration["Hue integration code (each host has its own instance)"]
+        HuePort --> Adapter{"Configured adapter"}
+        MCPHuePort --> Adapter
+        Adapter --> Live["HueApiHueService"]
+        Adapter --> Demo["DemoHueService"]
+    end
+
+    Live --> Bridge["Philips Hue Bridge API v2"]
+
+    subgraph Verification["Offline verification"]
+        Unit["xUnit tests"] --> Fake["Fake Hue service"]
+        Evaluation["Optional OpenAI evaluation"] --> Fake
+    end
+```
+
+The model proposes; HuePilot resolves discovered resources and validates every action before execution. The MCP server exposes the same bounded Hue service to external agents, with OpenCode approval required for mutations.
+
 ## Run the app
 
 ```sh
