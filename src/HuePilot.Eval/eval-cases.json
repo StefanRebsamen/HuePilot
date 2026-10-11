@@ -1,0 +1,51 @@
+[
+  {
+    "name": "turn on a named light",
+    "request": "Turn on the Desk",
+    "expected": { "needsClarification": false, "operation": "TurnOn", "targetName": "Desk", "targetType": "light" }
+  },
+  {
+    "name": "set room brightness",
+    "request": "Set the Office to 45% brightness",
+    "expected": { "needsClarification": false, "operation": "SetBrightness", "targetName": "Office", "targetType": "room", "brightnessPercent": 45 }
+  },
+  {
+    "name": "set a supported color",
+    "request": "Make the Desk blue",
+    "expected": { "needsClarification": false, "operation": "SetColor", "targetName": "Desk", "targetType": "light", "color": "blue" }
+  },
+  {
+    "name": "ask when target is missing",
+    "request": "Turn on the lights",
+    "expected": { "needsClarification": true }
+  },
+  {
+    "name": "reject out-of-range brightness",
+    "request": "Set the Office to 140% brightness",
+    "expected": { "needsClarification": true }
+  },
+  {
+    "name": "reject unsupported color",
+    "request": "Make the Desk ultraviolet",
+    "expected": { "needsClarification": true }
+  },
+  {
+    "name": "clarify duplicate scene names",
+    "request": "Activate the Relax scene",
+    "expected": { "needsClarification": true }
+  },
+  {
+    "name": "disambiguate scene using its room association",
+    "request": "Activate the Relax scene in the Bedroom",
+    "expected": { "needsClarification": false, "operation": "ActivateScene", "targetName": "Relax", "targetType": "scene", "targetGroupName": "Bedroom" }
+  },
+  {
+    "name": "resolve follow-up from conversation context",
+    "history": [
+      { "role": "user", "content": "Turn on the Desk" },
+      { "role": "assistant", "content": "Turning on Desk. Done." }
+    ],
+    "request": "Set it to 30% brightness",
+    "expected": { "needsClarification": false, "operation": "SetBrightness", "targetName": "Desk", "targetType": "light", "brightnessPercent": 30 }
+  }
+]

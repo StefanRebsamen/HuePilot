@@ -1,0 +1,116 @@
+@page "/"
+@rendermode InteractiveServer
+@inject HueConversationService Conversation
+@inject IConfiguration Configuration
+
+<PageTitle>HuePilot · AI light assistant</PageTitle>
+
+<main class="chat-shell">
+    <header class="chat-header">
+        <div>
+            <p class="eyebrow">HUEPILOT</p>
+            <h1>Light assistant</h1>
+            <p class="subtitle">Describe the lighting you want in everyday language.</p>
+        </div>
+        @if (string.IsNullOrWhiteSpace(Configuration["Bridge:IpAddress"]) || string.IsNullOrWhiteSpace(Configuration["Bridge:ApplicationKey"]))
+        {
+            <span class="demo-badge">DEMO · no real lights changed</span>
+        }
+        else
+        {
+            <span class="connected-badge">Hue Bridge configured</span>
+        }
+    </header>
+
+    <section class="conversation" aria-label="Conversation" aria-live="polite">
+        @if (_messages.Count == 0)
+        {
+            <div class="welcome-card">
+                <h2>What kind of light do you need?</h2>
+                <p>Try “Turn on the desk lamp”, “Set the office to 40% brightness”, or “Activate the Relax scene”.</p>
+            </div>
+        }
+        @foreach (var message in _messages)
+        {
+            <article class="message @message.Role">
+                <span class="message-label">@(message.Role == "user" ? "You" : "HuePilot")</span>
+                <p>@message.Text</p>
+                @if (!string.IsNullOrWhiteSpace(message.TechnicalDetails))
+                {
+                    <details>
+                        <summary>Technical details</summary>
+                        <pre>@message.TechnicalDetails</pre>
+                    </details>
+                }
+            </article>
+        }
+        @if (_busy)
+        {
+            <p class="working" role="status">Thinking…</p>
+        }
+    </section>
+
+    <form class="prompt-form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+        <label class="visually-hidden" for="request">Your lighting request</label>
+        <input id="request" @bind="_request" @bind:event="oninput" placeholder="Ask for a lighting change…" disabled="@_busy" />
+        <button type="submit" disabled="@(_busy || string.IsNullOrWhiteSpace(_request))">Send</button>
+    </form>
+    <p class="privacy-note">Conversation context lasts only in this browser session.</p>
+    <p class="setup-link"><a href="/resources">Browse Hue resources</a> · <a href="/setup">Hue Bridge setup</a></p>
+</main>
+
+@code {
+    private readonly List<ChatMessageView> _messages = [];
+    private readonly List<ChatTurn> _history = [];
+    private string _request = "";
+    private bool _busy;
+    private async Task SubmitAsync()
+    {
+        var request = _request.Trim();
+        if (request.Length == 0 || _busy) return;
+
+        _request = "";
+        _messages.Add(new("user", request));
+        _busy = true;
+        try
+        {
+            var plan = await Conversation.PlanAsync(request, _history);
+            _history.Add(new("user", request));
+
+            if (plan.ProposedAction is null)
+            {
+                _messages.Add(new("assistant", plan.AssistantMessage));
+                _history.Add(new("assistant", plan.AssistantMessage));
+                return;
+            }
+
+            var response = new ChatMessageView("assistant", plan.AssistantMessage);
+            _messages.Add(response);
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield();
+
+            await Conversation.ExecuteAsync(plan.ProposedAction);
+            response.Text += " Done.";
+            _history.Add(new("assistant", response.Text));
+        }
+        catch (Exception ex)
+        {
+            var friendly = ex is InvalidOperationException && ex.Message.Contains("OpenAI is not configured", StringComparison.Ordinal)
+                ? "AI requests are not configured yet. Add your OpenAI API key to local .NET user secrets."
+                : "I couldn't complete that request. Please check the connection and try again.";
+            _messages.Add(new("assistant", friendly, ex.Message));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class ChatMessageView(string role, string text, string? technicalDetails = null)
+    {
+        public string Role { get; } = role;
+        public string Text { get; set; } = text;
+        public string? TechnicalDetails { get; } = technicalDetails;
+    }
+
+}

@@ -1,0 +1,104 @@
+@page "/setup"
+@rendermode InteractiveServer
+@inject HueBridgeSetupService BridgeSetup
+
+<PageTitle>HuePilot · Bridge setup</PageTitle>
+
+<main class="setup-shell">
+    <a href="/">← Back to chat</a>
+    <span class="setup-secondary-link"><a href="/resources">Browse resources</a></span>
+    <p class="eyebrow">HUEPILOT SETUP</p>
+    <h1>Connect your Hue Bridge</h1>
+    <p>HuePilot uses the local Hue Bridge API. Pairing requires physical access to the Bridge.</p>
+
+    <section class="setup-card">
+        <h2>1. Find your Bridge</h2>
+        <p>Look up the Bridge address through Hue discovery, or enter the local IP shown in your Hue app/router. Discovery finds an address; it does not verify this app can reach the Bridge.</p>
+        <button type="button" @onclick="DiscoverAsync" disabled="@_busy">Discover Bridges</button>
+        @if (_bridges.Count > 0)
+        {
+            <ul class="bridge-list">
+                @foreach (var bridge in _bridges)
+                {
+                    <li><button type="button" class="select-bridge" @onclick="() => _ipAddress = bridge.IpAddress">@bridge.IpAddress <small>(@bridge.BridgeId)</small></button></li>
+                }
+            </ul>
+        }
+        <label for="bridge-ip">Bridge IP address</label>
+        <input id="bridge-ip" @bind="_ipAddress" placeholder="192.168.1.100" />
+    </section>
+
+    <section class="setup-card">
+        <h2>2. Pair HuePilot</h2>
+        <ol>
+            <li>Press the physical link button on the Hue Bridge.</li>
+            <li>Then click Pair below within the Bridge’s pairing window.</li>
+        </ol>
+        <button type="button" @onclick="PairAsync" disabled="@(_busy || string.IsNullOrWhiteSpace(_ipAddress))">Pair Bridge</button>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="setup-message" role="status">@_message</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_technicalDetails))
+    {
+        <details><summary>Technical details</summary><pre>@_technicalDetails</pre></details>
+    }
+    @if (!string.IsNullOrWhiteSpace(_applicationKey))
+    {
+        <section class="setup-card key-card">
+            <h2>3. Save the key locally</h2>
+            <p>Copy this key into your local .NET user-secrets store. This page will not save it, and the key is not committed to the project.</p>
+            <label for="application-key">Bridge application key</label>
+            <input id="application-key" value="@_applicationKey" readonly />
+            <pre>dotnet user-secrets set "Bridge:IpAddress" "@_ipAddress" --project src/HuePilot/HuePilot.csproj<br />dotnet user-secrets set "Bridge:ApplicationKey" "&lt;paste-the-key-above&gt;" --project src/HuePilot/HuePilot.csproj</pre>
+            <p>Restart the app after setting both secrets. Then the chat will use the real Bridge instead of demo mode.</p>
+        </section>
+    }
+</main>
+
+@code {
+    private readonly List<HueBridgeInfo> _bridges = [];
+    private string _ipAddress = "";
+    private string _applicationKey = "";
+    private string _message = "";
+    private string? _technicalDetails;
+    private bool _busy;
+
+    private async Task DiscoverAsync()
+    {
+        _busy = true;
+        _message = "Searching the local network…";
+        try
+        {
+            _bridges.Clear();
+            _bridges.AddRange(await BridgeSetup.DiscoverAsync());
+            _message = _bridges.Count == 0 ? "No Bridge found. Check that you’re on the same network, or enter its IP address manually." : $"Found {_bridges.Count} Bridge(s). Select one below.";
+        }
+        catch (Exception ex)
+        {
+            _message = "Bridge discovery failed. You can enter the local IP address manually.";
+            _technicalDetails = ex.Message;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task PairAsync()
+    {
+        _busy = true;
+        _message = "Pairing…";
+        _applicationKey = "";
+        try
+        {
+            _applicationKey = await BridgeSetup.PairAsync(_ipAddress.Trim());
+            _message = "Paired successfully. Save the key below in .NET user secrets.";
+        }
+        catch (Exception ex)
+        {
+            _message = "Pairing failed. Confirm the Bridge IP, press its link button, and try again.";
+            _technicalDetails = ex.Message;
+        }
+        finally { _busy = false; }
+    }
+}

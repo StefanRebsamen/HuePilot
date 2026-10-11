@@ -1,0 +1,132 @@
+@page "/resources"
+@rendermode InteractiveServer
+@inject IHueService HueService
+@inject IConfiguration Configuration
+
+<PageTitle>HuePilot · Hue resources</PageTitle>
+
+<main class="setup-shell resources-shell">
+    <a href="/">← Back to chat</a>
+    <p class="eyebrow">HUEPILOT</p>
+    <div class="resources-heading">
+        <div>
+            <h1>Hue resources</h1>
+            <p>Lights and scenes show the rooms or zones they belong to; activating a scene applies it to its associated group.</p>
+        </div>
+        <button type="button" @onclick="LoadAsync" disabled="@_loading">@(_loading ? "Refreshing…" : "Refresh")</button>
+    </div>
+
+    @if (string.IsNullOrWhiteSpace(Configuration["Bridge:IpAddress"]) || string.IsNullOrWhiteSpace(Configuration["Bridge:ApplicationKey"]))
+    {
+        <p class="demo-notice">Demo mode · These are sample resources. Configure a Hue Bridge in <a href="/setup">Bridge setup</a> to see your devices.</p>
+    }
+    else
+    {
+        <p class="resource-note">Loaded from your Hue Bridge. Resource IDs are shown for troubleshooting.</p>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <section class="resource-error" role="alert">
+            <p>@_error</p>
+            @if (!string.IsNullOrWhiteSpace(_technicalDetails))
+            {
+                <details><summary>Technical details</summary><pre>@_technicalDetails</pre></details>
+            }
+        </section>
+    }
+    else if (_loading && _resources.Count == 0)
+    {
+        <p role="status">Loading resources…</p>
+    }
+    else if (_resources.Count == 0)
+    {
+        <p>No resources found.</p>
+    }
+    else
+    {
+        @foreach (var group in _resources.GroupBy(x => x.Type).OrderBy(x => TypeOrder(x.Key)))
+        {
+            <section class="resource-group">
+                <h2>@DisplayType(group.Key) <span>@group.Count()</span></h2>
+                <ul>
+                    @foreach (var resource in group.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        <li>
+                            <div class="resource-details">
+                                <strong>@resource.Name</strong>
+                                @if (resource.Groups is { Count: > 0 })
+                                {
+                                    <div class="resource-associations">
+                                        <span>@AssociationLabel(resource.Type)</span>
+                                        @foreach (var association in resource.Groups)
+                                        {
+                                            <span class="association-chip">@association.Name <small>@association.Type</small></span>
+                                        }
+                                    </div>
+                                }
+                                else if (resource.Type is "light" or "scene")
+                                {
+                                    <span class="unassociated-note">No room or zone association</span>
+                                }
+                            </div>
+                            <code title="Hue resource ID">@resource.Id</code>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+</main>
+
+@code {
+    private IReadOnlyList<HueResource> _resources = [];
+    private bool _loading;
+    private string? _error;
+    private string? _technicalDetails;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _technicalDetails = null;
+        try
+        {
+            _resources = await HueService.GetResourcesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = "Could not load Hue resources. Check the Bridge configuration and connection, then try again.";
+            _technicalDetails = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static int TypeOrder(string type) => type.ToLowerInvariant() switch
+    {
+        "room" => 0,
+        "light" => 1,
+        "scene" => 2,
+        _ => 3
+    };
+
+    private static string DisplayType(string type) => type.ToLowerInvariant() switch
+    {
+        "room" => "Rooms",
+        "light" => "Lights",
+        "scene" => "Scenes",
+        _ => $"{type}s"
+    };
+
+    private static string AssociationLabel(string type) => type.ToLowerInvariant() switch
+    {
+        "light" => "In:",
+        "scene" => "Applies to:",
+        _ => "Associated with:"
+    };
+}

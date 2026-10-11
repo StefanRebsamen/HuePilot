@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "huepilot": {
+        "type": "remote",
+        "url": "http://127.0.0.1:5179/mcp",
+        "oauth": false,
+        "codemode": false
+      }
+    }
+  },
+  "permissions": [
+    { "action": "huepilot_list_hue_resources", "resource": "*", "effect": "allow" },
+    { "action": "huepilot_set_hue_power", "resource": "*", "effect": "ask" },
+    { "action": "huepilot_set_hue_brightness", "resource": "*", "effect": "ask" },
+    { "action": "huepilot_set_hue_color", "resource": "*", "effect": "ask" },
+    { "action": "huepilot_activate_hue_scene", "resource": "*", "effect": "ask" }
+  ]
+}
