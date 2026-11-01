@@ -12,4 +12,8 @@ public interface IHueService
     /// <param name="action">The allowlisted operation and exact discovered resource.</param>
     /// <param name="cancellationToken">Cancels the Bridge request when the caller is canceled.</param>
     Task ExecuteAsync(HueAction action, CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the current status of a discovered light or room.</summary>
+    Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Status reporting is not supported by this Hue service.");
 }

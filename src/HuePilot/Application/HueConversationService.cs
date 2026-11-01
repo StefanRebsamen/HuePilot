@@ -68,6 +68,16 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
 
         var target = matches[0];
 
+        if (intent.Operation == HueOperation.GetStatus)
+        {
+            if (!target.Type.Equals("light", StringComparison.OrdinalIgnoreCase) &&
+                !target.Type.Equals("room", StringComparison.OrdinalIgnoreCase))
+                return new("I can report the status of a light or room, but not a scene.", NeedsClarification: true);
+
+            var status = await hueService.GetStatusAsync(target, cancellationToken);
+            return new(status);
+        }
+
         if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))
             return new(validationError, NeedsClarification: true);
 

@@ -12,5 +12,7 @@ public enum HueOperation
     /// <summary>Sets a supported named color.</summary>
     SetColor,
     /// <summary>Activates an existing Hue scene.</summary>
-    ActivateScene
+    ActivateScene,
+    /// <summary>Reports the current state of a light or room.</summary>
+    GetStatus
 }

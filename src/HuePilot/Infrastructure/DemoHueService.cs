@@ -25,4 +25,8 @@ public sealed class DemoHueService : IHueService
         // Deliberately does not contact real devices. The UI labels this as demo mode.
         return Task.CompletedTask;
     }
+
+    /// <inheritdoc />
+    public Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default) =>
+        Task.FromResult($"{resource.Name} is on at 40% brightness in demo mode.");
 }

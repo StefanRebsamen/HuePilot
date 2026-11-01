@@ -19,7 +19,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         Use lookup_resources to identify a resource when needed. Resource groups identify the room/zone a light belongs to or a scene controls.
         Use the group filter when the user specifies a room/zone. If the target remains ambiguous (including duplicate names in one group),
         the action is unsupported, or a value is out of range, ask a concise clarification question and do not propose an action.
-        Supported operations are TurnOn, TurnOff, SetBrightness (integer 1-100), SetColor (red, orange, yellow, green, cyan, blue,
+        Supported operations are GetStatus, TurnOn, TurnOff, SetBrightness (integer 1-100), SetColor (red, orange, yellow, green, cyan, blue,
         purple, pink, white, warm white, cool white), and ActivateScene. Never invent resource IDs or alter the request silently.
         propose_hue_action only creates a proposal. It does not execute anything. The application will validate the proposal.
         """;
@@ -35,7 +35,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         "propose_hue_action",
         "Propose one validated Hue action for a resource returned by lookup_resources. This only plans the action; it never changes a light.",
         BinaryData.FromString("""
-            {"type":"object","properties":{"operation":{"type":"string","enum":["TurnOn","TurnOff","SetBrightness","SetColor","ActivateScene"]},"targetId":{"type":"string"},"targetGroupId":{"type":["string","null"],"description":"Associated room/zone ID when the user's request specifies one; otherwise null."},"brightnessPercent":{"type":["integer","null"]},"color":{"type":["string","null"]}},"required":["operation","targetId","targetGroupId","brightnessPercent","color"],"additionalProperties":false}
+            {"type":"object","properties":{"operation":{"type":"string","enum":["GetStatus","TurnOn","TurnOff","SetBrightness","SetColor","ActivateScene"]},"targetId":{"type":"string"},"targetGroupId":{"type":["string","null"],"description":"Associated room/zone ID when the user's request specifies one; otherwise null."},"brightnessPercent":{"type":["integer","null"]},"color":{"type":["string","null"]}},"required":["operation","targetId","targetGroupId","brightnessPercent","color"],"additionalProperties":false}
             """), false);
 
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };

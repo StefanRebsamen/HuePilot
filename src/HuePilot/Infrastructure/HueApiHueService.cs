@@ -30,6 +30,45 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     }
 
     /// <inheritdoc />
+    public async Task<string> GetStatusAsync(Application.HueResource resource, CancellationToken cancellationToken = default)
+    {
+        if (!Guid.TryParse(resource.Id, out var resourceId))
+            throw new InvalidOperationException("The Hue resource identifier is invalid.");
+
+        var api = CreateApi();
+        if (resource.Type.Equals("light", StringComparison.OrdinalIgnoreCase))
+        {
+            var light = (await api.Light.GetAllAsync()).Data.Single(x => x.Id == resourceId);
+            var brightness = light.Dimming?.Brightness;
+            return light.On?.IsOn == true
+                ? $"{resource.Name} is on" + (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
+                : $"{resource.Name} is off.";
+        }
+
+        if (resource.Type.Equals("room", StringComparison.OrdinalIgnoreCase))
+        {
+            var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == resourceId);
+            var groupedLightId = room.GroupedServices?
+                .FirstOrDefault(x => x.Rtype.Equals("grouped_light", StringComparison.OrdinalIgnoreCase))?.Rid;
+            if (groupedLightId is null)
+            {
+                var groupedLights = await api.GroupedLight.GetAllAsync();
+                groupedLightId = HueRoomControlResolver.FindGroupedLightId(room, groupedLights.Data);
+            }
+            if (groupedLightId is null)
+                throw new InvalidOperationException($"Hue Bridge did not return a grouped light for room ‘{resource.Name}’.");
+
+            var groupedLight = (await api.GroupedLight.GetAllAsync()).Data.Single(x => x.Id == groupedLightId.Value);
+            var brightness = groupedLight.Dimming?.Brightness;
+            return groupedLight.On?.IsOn == true
+                ? $"{resource.Name} is on" + (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
+                : $"{resource.Name} is off.";
+        }
+
+        throw new InvalidOperationException("Hue status can only be reported for lights and rooms.");
+    }
+
+    /// <inheritdoc />
     public async Task ExecuteAsync(HueAction action, CancellationToken cancellationToken = default)
     {
         var api = CreateApi();
