@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject HueConversationService Conversation
 @inject IConfiguration Configuration
+@inject IAiCallDiagnostics AiDiagnostics
 
 <PageTitle>HuePilot · AI light assistant</PageTitle>
 
@@ -86,12 +87,12 @@
 
             if (plan.ProposedAction is null)
             {
-                _messages.Add(new("assistant", plan.AssistantMessage));
+                _messages.Add(new("assistant", plan.AssistantMessage, AiConversationDetails()));
                 _history.Add(new("assistant", plan.AssistantMessage));
                 return;
             }
 
-            var response = new ChatMessageView("assistant", plan.AssistantMessage);
+            var response = new ChatMessageView("assistant", plan.AssistantMessage, AiConversationDetails());
             _messages.Add(response);
             await InvokeAsync(StateHasChanged);
             await Task.Yield();
@@ -112,6 +113,11 @@
             _busy = false;
         }
     }
+
+    private string? AiConversationDetails() =>
+        string.Equals(Configuration["AI:LogConversation"], "true", StringComparison.OrdinalIgnoreCase)
+            ? AiDiagnostics.LastConversationLog
+            : null;
 
     private sealed class ChatMessageView(string role, string text, string? technicalDetails = null)
     {

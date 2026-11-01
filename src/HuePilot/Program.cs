@@ -14,6 +14,8 @@ builder.Services.AddScoped<IIntentParser>(sp =>
     string.Equals(builder.Configuration["AI:Approach"], "tools", StringComparison.OrdinalIgnoreCase)
         ? new OpenAiToolCallingIntentParser(sp.GetRequiredService<IConfiguration>())
         : new OpenAiStructuredIntentParser(sp.GetRequiredService<IConfiguration>()));
+builder.Services.AddScoped<IAiCallDiagnostics>(sp =>
+    (IAiCallDiagnostics)sp.GetRequiredService<IIntentParser>());
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Bridge:IpAddress"]) &&
     !string.IsNullOrWhiteSpace(builder.Configuration["Bridge:ApplicationKey"]))
     builder.Services.AddScoped<IHueService, HueApiHueService>();

@@ -42,6 +42,18 @@ public static class HueActionValidator
             return false;
         }
 
+        if (intent.Operation == HueOperation.GetStatus)
+        {
+            if (target.Type is not ("room" or "light"))
+            {
+                error = "Hue status can only be reported for lights and rooms.";
+                return false;
+            }
+            action = new(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
+            error = string.Empty;
+            return true;
+        }
+
         if (intent.Operation == HueOperation.ActivateScene && !target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
         {
             error = "Only an existing scene can be activated as a scene.";

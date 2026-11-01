@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HuePilot.Application;
@@ -41,12 +42,16 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private int _lastModelCallCount;
     private int _lastToolCallCount;
+    private readonly StringBuilder _conversationLog = new();
 
     /// <inheritdoc />
     public int LastModelCallCount => _lastModelCallCount;
 
     /// <inheritdoc />
     public int LastToolCallCount => _lastToolCallCount;
+
+    /// <inheritdoc />
+    public string LastConversationLog => _conversationLog.ToString();
 
     /// <inheritdoc />
     public async Task<HueIntent> ParseAsync(
@@ -57,6 +62,8 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
     {
         _lastModelCallCount = 0;
         _lastToolCallCount = 0;
+        _conversationLog.Clear();
+        _conversationLog.Append("User request:").AppendLine().Append(request).AppendLine().AppendLine();
 
         var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -86,6 +93,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             if (message.ToolCalls.Count == 0)
             {
                 var clarification = message.Content.FirstOrDefault()?.Text;
+                _conversationLog.Append("Model response:").AppendLine().Append(clarification).AppendLine();
                 return new(null, null, null, ClarificationQuestion: string.IsNullOrWhiteSpace(clarification)
                     ? "What room or light should I use, and what change would you like?"
                     : clarification.Trim());
@@ -95,16 +103,19 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             foreach (var toolCall in message.ToolCalls)
             {
                 _lastToolCallCount++;
+                var arguments = toolCall.FunctionArguments.ToString();
+                _conversationLog.Append("Tool call: ").Append(toolCall.FunctionName).AppendLine().Append(arguments).AppendLine().AppendLine();
                 if (toolCall.FunctionName == "lookup_resources")
                 {
-                    var result = SearchResources(toolCall.FunctionArguments.ToString(), availableResources);
+                    var result = SearchResources(arguments, availableResources);
+                    _conversationLog.Append("Tool result:").AppendLine().Append(result).AppendLine().AppendLine();
                     messages.Add(new ToolChatMessage(toolCall.Id, result));
                     continue;
                 }
 
                 if (toolCall.FunctionName == "propose_hue_action")
                     // Proposals are parsed and validated here; only the Blazor action flow can execute them.
-                    return ParseProposal(toolCall.FunctionArguments.ToString(), availableResources);
+                    return ParseProposal(arguments, availableResources);
 
                 messages.Add(new ToolChatMessage(toolCall.Id, "Unsupported tool. Use only the tools provided."));
             }

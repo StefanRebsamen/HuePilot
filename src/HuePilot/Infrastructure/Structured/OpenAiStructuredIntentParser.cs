@@ -29,6 +29,9 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
     public int LastToolCallCount => 0;
 
     /// <inheritdoc />
+    public string LastConversationLog { get; private set; } = "";
+
+    /// <inheritdoc />
     public async Task<HueIntent> ParseAsync(
         string request,
         IReadOnlyList<ChatTurn> history,
@@ -36,6 +39,7 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         CancellationToken cancellationToken = default)
     {
         LastModelCallCount = 0;
+        LastConversationLog = "";
         var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new InvalidOperationException("OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
@@ -60,6 +64,7 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         LastModelCallCount = 1;
         var json = completion.Value.Content.FirstOrDefault()?.Text
             ?? throw new InvalidOperationException("The AI provider returned no intent.");
+        LastConversationLog = $"User request:\n{request}\n\nModel response:\n{json}";
 
         // JSON mode guarantees syntax, not safe semantics; HueConversationService resolves and validates the result.
         var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };

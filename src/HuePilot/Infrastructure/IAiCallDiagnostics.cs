@@ -8,4 +8,7 @@ public interface IAiCallDiagnostics
 
     /// <summary>The number of tool invocations made during the last parse operation.</summary>
     int LastToolCallCount { get; }
+
+    /// <summary>The application-to-model exchange from the last parse operation.</summary>
+    string LastConversationLog { get; }
 }
