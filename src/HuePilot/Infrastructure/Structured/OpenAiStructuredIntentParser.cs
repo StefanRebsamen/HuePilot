@@ -16,7 +16,7 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         return a concise clarificationQuestion and no operation. Do not guess, clamp, or silently substitute values.
         Report GetStatus for requests asking whether a light or room is on or off, or for its current brightness.
         Supported colors are red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, and cool white.
-        Return JSON only with fields: operation (TurnOn, TurnOff, SetBrightness, SetColor,         ActivateScene, GetStatus, or null),
+        Return JSON with an "intents" array. For each action use fields: operation (TurnOn, TurnOff, SetBrightness, SetColor, ActivateScene, GetStatus, or null),
         targetName, targetType (room, light, or scene), targetGroupName, targetGroupType (room or zone, or null),
         brightnessPercent (integer 1-100 or null), color (plain color name or null), clarificationQuestion.
         Never invent resource names, IDs, or associations.
@@ -69,7 +69,18 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         // JSON mode guarantees syntax, not safe semantics; HueConversationService resolves and validates the result.
         var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         jsonOptions.Converters.Add(new JsonStringEnumConverter());
-        var intent = JsonSerializer.Deserialize<HueIntent>(json, jsonOptions);
-        return intent ?? throw new InvalidOperationException("The AI provider returned an invalid intent.");
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("intents", out var intentsElement))
+            return JsonSerializer.Deserialize<HueIntent>(json, jsonOptions)
+                ?? throw new InvalidOperationException("The AI provider returned an invalid intent.");
+
+        var intents = JsonSerializer.Deserialize<List<HueIntent>>(intentsElement.GetRawText(), jsonOptions)
+            ?? throw new InvalidOperationException("The AI provider returned an invalid intent list.");
+        if (intents.Count == 0)
+            throw new InvalidOperationException("The AI provider returned no intents.");
+        var first = intents[0];
+        return intents.Count == 1
+            ? first
+            : first with { AdditionalIntents = intents.Skip(1).ToArray() };
     }
 }

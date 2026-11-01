@@ -3,6 +3,7 @@
 @inject HueConversationService Conversation
 @inject IConfiguration Configuration
 @inject IAiCallDiagnostics AiDiagnostics
+@inject AiApproachState AiApproachState
 
 <PageTitle>HuePilot · AI light assistant</PageTitle>
 
@@ -14,7 +15,13 @@
             <p class="subtitle">Describe the lighting you want in everyday language.</p>
         </div>
         <div class="status-badges">
-            <span class="ai-approach-badge">AI · @CurrentAiApproach</span>
+            <label class="ai-approach-selector">
+                AI approach
+                <select value="@AiApproachState.Current" @onchange="ChangeAiApproach" disabled="@_busy">
+                    <option value="@AiApproach.Structured">Structured output</option>
+                    <option value="@AiApproach.Tools">Tool calling</option>
+                </select>
+            </label>
             @if (string.IsNullOrWhiteSpace(Configuration["Bridge:IpAddress"]) || string.IsNullOrWhiteSpace(Configuration["Bridge:ApplicationKey"]))
             {
                 <span class="demo-badge">DEMO · no real lights changed</span>
@@ -69,9 +76,12 @@
     private string _request = "";
     private bool _busy;
 
-    private string CurrentAiApproach => string.Equals(Configuration["AI:Approach"], "tools", StringComparison.OrdinalIgnoreCase)
-        ? "Tool calling"
-        : "Structured output";
+    private void ChangeAiApproach(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<AiApproach>(args.Value?.ToString(), out var approach))
+            AiApproachState.Set(approach);
+    }
+
     private async Task SubmitAsync()
     {
         var request = _request.Trim();
@@ -97,7 +107,8 @@
             await InvokeAsync(StateHasChanged);
             await Task.Yield();
 
-            await Conversation.ExecuteAsync(plan.ProposedAction);
+            foreach (var action in plan.ProposedActions ?? [plan.ProposedAction])
+                await Conversation.ExecuteAsync(action);
             response.Text += " Done.";
             _history.Add(new("assistant", response.Text));
         }

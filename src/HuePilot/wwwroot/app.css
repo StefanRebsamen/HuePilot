@@ -13,7 +13,8 @@ html, body {
 .chat-header h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.5rem); letter-spacing: -.04em; }
 .subtitle { margin: 8px 0 0; color: #6b6d65; }
 .status-badges { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 8px; }
-.ai-approach-badge { border: 1px solid #cbd0ff; border-radius: 999px; padding: 8px 11px; background: #f2f3ff; color: #4650a1; font-size: .68rem; font-weight: 800; letter-spacing: .04em; }
+.ai-approach-selector { display: flex; align-items: center; gap: 8px; color: #4650a1; font-size: .68rem; font-weight: 800; letter-spacing: .04em; }
+.ai-approach-selector select { border: 1px solid #cbd0ff; border-radius: 999px; padding: 7px 10px; background: #f2f3ff; color: #4650a1; font-size: .75rem; font-weight: 700; }
 .demo-badge { flex: none; border: 1px solid #ead5a2; border-radius: 999px; padding: 8px 11px; background: #fff8e6; color: #775819; font-size: .68rem; font-weight: 800; letter-spacing: .04em; }
 .connected-badge { flex: none; border: 1px solid #c9dec0; border-radius: 999px; padding: 8px 11px; background: #eef7e9; color: #426431; font-size: .68rem; font-weight: 800; }
 .conversation { display: flex; min-height: 48vh; max-height: 62vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 28px 0; }

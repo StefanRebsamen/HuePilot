@@ -43,6 +43,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
     private int _lastModelCallCount;
     private int _lastToolCallCount;
     private readonly StringBuilder _conversationLog = new();
+    private readonly List<HueIntent> _proposedIntents = [];
 
     /// <inheritdoc />
     public int LastModelCallCount => _lastModelCallCount;
@@ -63,6 +64,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         _lastModelCallCount = 0;
         _lastToolCallCount = 0;
         _conversationLog.Clear();
+        _proposedIntents.Clear();
         _conversationLog.Append("User request:").AppendLine().Append(request).AppendLine().AppendLine();
 
         var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
@@ -94,6 +96,8 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             {
                 var clarification = message.Content.FirstOrDefault()?.Text;
                 _conversationLog.Append("Model response:").AppendLine().Append(clarification).AppendLine();
+                if (_proposedIntents.Count > 0)
+                    return Combine(_proposedIntents);
                 return new(null, null, null, ClarificationQuestion: string.IsNullOrWhiteSpace(clarification)
                     ? "What room or light should I use, and what change would you like?"
                     : clarification.Trim());
@@ -114,8 +118,16 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                 }
 
                 if (toolCall.FunctionName == "propose_hue_action")
-                    // Proposals are parsed and validated here; only the Blazor action flow can execute them.
-                    return ParseProposal(arguments, availableResources);
+                {
+                    var proposal = ParseProposal(arguments, availableResources);
+                    if (!proposal.NeedsClarification && proposal.Operation is not null)
+                    {
+                        _proposedIntents.Add(proposal);
+                        messages.Add(new ToolChatMessage(toolCall.Id, "Proposal accepted for application validation."));
+                        continue;
+                    }
+                    return proposal;
+                }
 
                 messages.Add(new ToolChatMessage(toolCall.Id, "Unsupported tool. Use only the tools provided."));
             }
@@ -188,6 +200,10 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             return Clarify("I couldn't safely read the proposed action. Could you rephrase your request?");
         }
     }
+
+    private static HueIntent Combine(IReadOnlyList<HueIntent> intents) => intents.Count == 1
+        ? intents[0]
+        : intents[0] with { AdditionalIntents = intents.Skip(1).ToArray() };
 
     private static HueIntent Clarify(string message) => new(null, null, null, ClarificationQuestion: message);
 

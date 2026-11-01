@@ -22,6 +22,29 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
         var resources = await hueService.GetResourcesAsync(cancellationToken);
         var intent = await parser.ParseAsync(request, history, resources, cancellationToken);
 
+        var intents = new[] { intent }.Concat(intent.AdditionalIntents ?? []).ToArray();
+        var actions = new List<HueAction>();
+        var messages = new List<string>();
+        foreach (var proposedIntent in intents)
+        {
+            var resolved = await ResolveIntentAsync(proposedIntent, request, resources, cancellationToken);
+            if (resolved.NeedsClarification)
+                return resolved;
+            if (resolved.ProposedAction is not null)
+                actions.Add(resolved.ProposedAction);
+            else
+                messages.Add(resolved.AssistantMessage);
+        }
+
+        if (actions.Count > 0)
+            return new(messages.Count > 0
+                ? string.Join(" ", messages.Concat([DescribeActions(actions)]))
+                : DescribeActions(actions), actions[0], ProposedActions: actions);
+        return new(string.Join(" ", messages));
+    }
+
+    private async Task<ConversationPlan> ResolveIntentAsync(HueIntent intent, string request, IReadOnlyList<HueResource> resources, CancellationToken cancellationToken)
+    {
         if (intent.NeedsClarification)
             return new(intent.ClarificationQuestion!, NeedsClarification: true);
 
@@ -89,6 +112,10 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
     /// <param name="cancellationToken">Cancels the Bridge request.</param>
     public async Task ExecuteAsync(HueAction action, CancellationToken cancellationToken = default) =>
         await hueService.ExecuteAsync(action, cancellationToken);
+
+    private static string DescribeActions(IReadOnlyList<HueAction> actions) => actions.Count == 1
+        ? Describe(actions[0])
+        : $"Applying {actions.Count} requested Hue actions: {string.Join("; ", actions.Select(Describe))}";
 
     private static string Describe(HueAction action) => action.Operation switch
     {

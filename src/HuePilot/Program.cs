@@ -10,12 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddScoped<IIntentParser>(sp =>
-    string.Equals(builder.Configuration["AI:Approach"], "tools", StringComparison.OrdinalIgnoreCase)
-        ? new OpenAiToolCallingIntentParser(sp.GetRequiredService<IConfiguration>())
-        : new OpenAiStructuredIntentParser(sp.GetRequiredService<IConfiguration>()));
-builder.Services.AddScoped<IAiCallDiagnostics>(sp =>
-    (IAiCallDiagnostics)sp.GetRequiredService<IIntentParser>());
+builder.Services.AddScoped<AiApproachState>();
+builder.Services.AddScoped<DynamicIntentParser>();
+builder.Services.AddScoped<IIntentParser>(sp => sp.GetRequiredService<DynamicIntentParser>());
+builder.Services.AddScoped<IAiCallDiagnostics>(sp => sp.GetRequiredService<DynamicIntentParser>());
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Bridge:IpAddress"]) &&
     !string.IsNullOrWhiteSpace(builder.Configuration["Bridge:ApplicationKey"]))
     builder.Services.AddScoped<IHueService, HueApiHueService>();
