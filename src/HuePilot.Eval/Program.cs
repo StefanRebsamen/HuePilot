@@ -3,10 +3,12 @@ using System.Text.Json.Serialization;
 using System.Diagnostics;
 using HuePilot.Application;
 using HuePilot.Infrastructure;
+using HuePilot.Infrastructure.Structured;
+using HuePilot.Infrastructure.ToolCalling;
 using Microsoft.Extensions.Configuration;
 
 var configuration = new ConfigurationBuilder()
-    .AddUserSecrets(typeof(OpenAiIntentParser).Assembly, optional: true)
+    .AddUserSecrets(typeof(OpenAiStructuredIntentParser).Assembly, optional: true)
     .AddEnvironmentVariables()
     .Build();
 
@@ -44,7 +46,7 @@ var resources = new List<HueResource>
 var hue = new FakeHueService(resources);
 IIntentParser parser = approach == "tools"
     ? new OpenAiToolCallingIntentParser(configuration)
-    : new OpenAiIntentParser(configuration);
+    : new OpenAiStructuredIntentParser(configuration);
 var diagnostics = (IAiCallDiagnostics)parser;
 var conversation = new HueConversationService(parser, hue);
 var passed = 0;
@@ -55,7 +57,6 @@ var elapsedTotal = TimeSpan.Zero;
 Console.WriteLine($"Running {cases.Length} '{approach}' intent evaluations. No Hue commands will be executed.\n");
 foreach (var testCase in cases)
 {
-    diagnostics = (IAiCallDiagnostics)parser;
     var timer = Stopwatch.StartNew();
     try
     {

@@ -12,14 +12,17 @@
             <h1>Light assistant</h1>
             <p class="subtitle">Describe the lighting you want in everyday language.</p>
         </div>
-        @if (string.IsNullOrWhiteSpace(Configuration["Bridge:IpAddress"]) || string.IsNullOrWhiteSpace(Configuration["Bridge:ApplicationKey"]))
-        {
-            <span class="demo-badge">DEMO · no real lights changed</span>
-        }
-        else
-        {
-            <span class="connected-badge">Hue Bridge configured</span>
-        }
+        <div class="status-badges">
+            <span class="ai-approach-badge">AI · @CurrentAiApproach</span>
+            @if (string.IsNullOrWhiteSpace(Configuration["Bridge:IpAddress"]) || string.IsNullOrWhiteSpace(Configuration["Bridge:ApplicationKey"]))
+            {
+                <span class="demo-badge">DEMO · no real lights changed</span>
+            }
+            else
+            {
+                <span class="connected-badge">Hue Bridge configured</span>
+            }
+        </div>
     </header>
 
     <section class="conversation" aria-label="Conversation" aria-live="polite">
@@ -64,6 +67,10 @@
     private readonly List<ChatTurn> _history = [];
     private string _request = "";
     private bool _busy;
+
+    private string CurrentAiApproach => string.Equals(Configuration["AI:Approach"], "tools", StringComparison.OrdinalIgnoreCase)
+        ? "Tool calling"
+        : "Structured output";
     private async Task SubmitAsync()
     {
         var request = _request.Trim();

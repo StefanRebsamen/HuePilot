@@ -3,11 +3,11 @@ using System.Text.Json.Serialization;
 using OpenAI.Chat;
 using HuePilot.Application;
 
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.Structured;
 
 /// <summary>Uses OpenAI structured JSON output to translate a request into one Hue intent.</summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
-public sealed class OpenAiIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
+public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
 {
     private const string SystemPrompt = """
         Convert the latest user request into one safe Philips Hue intent. Use only resources listed in the supplied catalog.

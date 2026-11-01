@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using HuePilot.Application;
 using OpenAI.Chat;
 
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.ToolCalling;
 
 /// <summary>
 /// An agentic planning variant. Its tools only search the supplied catalog and propose an action;

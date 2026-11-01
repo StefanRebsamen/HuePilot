@@ -1,6 +1,8 @@
 using HuePilot.Components;
 using HuePilot.Application;
 using HuePilot.Infrastructure;
+using HuePilot.Infrastructure.Structured;
+using HuePilot.Infrastructure.ToolCalling;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,7 +13,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddScoped<IIntentParser>(sp =>
     string.Equals(builder.Configuration["AI:Approach"], "tools", StringComparison.OrdinalIgnoreCase)
         ? new OpenAiToolCallingIntentParser(sp.GetRequiredService<IConfiguration>())
-        : new OpenAiIntentParser(sp.GetRequiredService<IConfiguration>()));
+        : new OpenAiStructuredIntentParser(sp.GetRequiredService<IConfiguration>()));
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Bridge:IpAddress"]) &&
     !string.IsNullOrWhiteSpace(builder.Configuration["Bridge:ApplicationKey"]))
     builder.Services.AddScoped<IHueService, HueApiHueService>();
