@@ -35,4 +35,20 @@ public sealed class HueRoomControlResolverTests
             new ApiGroupedLight { Id = Guid.NewGuid(), Owner = new ResourceIdentifier { Rid = roomId, Rtype = "room" } }
         ]));
     }
+
+    [Fact]
+    public void FindsGroupedLightByZoneOwner()
+    {
+        var zoneId = Guid.NewGuid();
+        var groupedLightId = Guid.NewGuid();
+
+        Assert.Equal(groupedLightId, HueRoomControlResolver.FindGroupedLightId(
+            zoneId,
+            "zone",
+            [new ApiGroupedLight
+            {
+                Id = groupedLightId,
+                Owner = new ResourceIdentifier { Rid = zoneId, Rtype = "zone" }
+            }]));
+    }
 }

@@ -45,18 +45,13 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
                 : $"{resource.Name} is off.";
         }
 
-        if (resource.Type.Equals("room", StringComparison.OrdinalIgnoreCase))
+        if (resource.Type.Equals("room", StringComparison.OrdinalIgnoreCase) ||
+            resource.Type.Equals("zone", StringComparison.OrdinalIgnoreCase))
         {
-            var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == resourceId);
-            var groupedLightId = room.GroupedServices?
-                .FirstOrDefault(x => x.Rtype.Equals("grouped_light", StringComparison.OrdinalIgnoreCase))?.Rid;
+            var groupedLightId = await FindGroupedLightIdAsync(
+                api, resourceId, resource.Type, cancellationToken);
             if (groupedLightId is null)
-            {
-                var groupedLights = await api.GroupedLight.GetAllAsync();
-                groupedLightId = HueRoomControlResolver.FindGroupedLightId(room, groupedLights.Data);
-            }
-            if (groupedLightId is null)
-                throw new InvalidOperationException($"Hue Bridge did not return a grouped light for room ‘{resource.Name}’.");
+                throw new InvalidOperationException($"Hue Bridge did not return a grouped light for {resource.Type} ‘{resource.Name}’.");
 
             var groupedLight = (await api.GroupedLight.GetAllAsync()).Data.Single(x => x.Id == groupedLightId.Value);
             var brightness = groupedLight.Dimming?.Brightness;
@@ -65,7 +60,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
                 : $"{resource.Name} is off.";
         }
 
-        throw new InvalidOperationException("Hue status can only be reported for lights and rooms.");
+        throw new InvalidOperationException("Hue status can only be reported for lights, rooms, and zones.");
     }
 
     /// <inheritdoc />
@@ -100,21 +95,13 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
                     break;
                 }
 
-                if (current.Type == "room")
+                if (current.Type == "room" || current.Type == "zone")
                 {
-                    var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == resourceId);
-                    var groupedLightId = room.GroupedServices?
-                        .FirstOrDefault(x => x.Rtype.Equals("grouped_light", StringComparison.OrdinalIgnoreCase))?.Rid;
-                    if (groupedLightId is null)
-                    {
-                        // Fall back to the grouped-light owner relationship for Bridges that do
-                        // not populate Room.GroupedServices.
-                        var groupedLights = await api.GroupedLight.GetAllAsync();
-                        groupedLightId = HueRoomControlResolver.FindGroupedLightId(room, groupedLights.Data);
-                    }
+                    var groupedLightId = await FindGroupedLightIdAsync(
+                        api, resourceId, current.Type, cancellationToken);
 
                     if (groupedLightId is null)
-                        throw new InvalidOperationException($"Hue Bridge did not return a grouped light owned by room ‘{room.Metadata?.Name ?? room.Id.ToString()}’.");
+                        throw new InvalidOperationException($"Hue Bridge did not return a grouped light owned by {current.Type} ‘{current.Name}’.");
 
                     await api.GroupedLight.UpdateAsync(groupedLightId.Value, BuildGroupedUpdate(action));
                     break;
@@ -131,6 +118,30 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         if (!IsConfigured)
             throw new InvalidOperationException("Hue Bridge is not configured. Visit /setup to pair a Bridge and add its settings as user secrets.");
         return new LocalHueApi(_bridgeIp, _applicationKey);
+    }
+
+    private static async Task<Guid?> FindGroupedLightIdAsync(
+        LocalHueApi api, Guid groupId, string groupType, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<HueApi.Models.ResourceIdentifier>? groupedServices;
+        if (groupType.Equals("room", StringComparison.OrdinalIgnoreCase))
+        {
+            var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == groupId);
+            groupedServices = room.GroupedServices;
+
+                var configuredId = groupedServices
+                    .FirstOrDefault(x => x.Rtype.Equals("grouped_light", StringComparison.OrdinalIgnoreCase))?.Rid;
+                if (configuredId is not null)
+                    return configuredId;
+        }
+        else
+        {
+            var zone = (await api.Zone.GetAllAsync()).Data.Single(x => x.Id == groupId);
+            groupedServices = null;
+        }
+
+        var groupedLights = await api.GroupedLight.GetAllAsync();
+        return HueRoomControlResolver.FindGroupedLightId(groupId, groupType, groupedLights.Data);
     }
 
     private static UpdateLight BuildLightUpdate(HueAction action)

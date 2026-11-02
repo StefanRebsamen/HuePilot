@@ -14,10 +14,11 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         Resource groups describe where a light belongs or which room/zone a scene controls. Use the user's requested room/group to disambiguate duplicate resource names.
         If the target is still ambiguous, the action is unsupported, or a value is outside the supported range,
         return a concise clarificationQuestion and no operation. Do not guess, clamp, or silently substitute values.
-        Report GetStatus for requests asking whether a light or room is on or off, or for its current brightness.
+        Report GetStatus for requests asking whether a light, room, or zone is on or off, or for its current brightness.
+        Report ListResources for catalog questions such as what lights, rooms, zones, or scenes are available. For ListResources, targetType is the requested category (light, room, scene, or zone), and targetName is an optional room or zone used as the scope; targetGroupName can contain the same scope.
         Supported colors are red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, and cool white.
-        Return JSON with an "intents" array. For each action use fields: operation (TurnOn, TurnOff, SetBrightness, SetColor, ActivateScene, GetStatus, or null),
-        targetName, targetType (room, light, or scene), targetGroupName, targetGroupType (room or zone, or null),
+        Return JSON with an "intents" array. For each action use fields: operation (TurnOn, TurnOff, SetBrightness, SetColor, ActivateScene, GetStatus, ListResources, or null),
+        targetName, targetType (room, zone, light, or scene), targetGroupName, targetGroupType (room or zone, or null),
         brightnessPercent (integer 1-100 or null), color (plain color name or null), clarificationQuestion.
         Never invent resource names, IDs, or associations.
         """;

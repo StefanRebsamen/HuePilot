@@ -53,6 +53,8 @@ public static class HueResourceMapper
                 lightGroups.TryGetValue(light.Id, out var memberships) ? memberships : []))
             .Concat(roomList.Select(room => new AppHueResource(
                 room.Id.ToString(), Name(room.Metadata?.Name, "Unnamed room"), "room")))
+            .Concat(zoneList.Select(zone => new AppHueResource(
+                zone.Id.ToString(), Name(zone.Metadata?.Name, "Unnamed zone"), "zone")))
             .Concat(scenes.Select(scene => new AppHueResource(
                 scene.Id.ToString(),
                 Name(scene.Metadata?.Name, "Unnamed scene"),

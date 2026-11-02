@@ -49,6 +49,36 @@ public sealed class HueConversationServiceTests
     }
 
     [Fact]
+    public async Task ListResourcesReportsLightsAssociatedWithRoom()
+    {
+        var office = new HueResourceGroup("room-1", "Office", "room");
+        var desk = new HueResource("light-1", "Desk lamp", "light", [office]);
+        var ceiling = new HueResource("light-2", "Ceiling light", "light", [office]);
+        var hue = new FakeHueService([Office, desk, ceiling]);
+        var service = new HueConversationService(new FakeIntentParser(new(HueOperation.ListResources, "Office", "light")), hue);
+
+        var result = await service.PlanAsync("What lamps are in the office?", []);
+
+        Assert.Contains("Desk lamp", result.AssistantMessage);
+        Assert.Contains("Ceiling light", result.AssistantMessage);
+        Assert.Null(result.ProposedAction);
+    }
+
+    [Fact]
+    public async Task ZoneCanBeControlled()
+    {
+        var zone = new HueResource("zone-upstairs", "Upstairs", "zone");
+        var hue = new FakeHueService([zone]);
+        var service = new HueConversationService(
+            new FakeIntentParser(new(HueOperation.TurnOn, "Upstairs", "zone")), hue);
+
+        var result = await service.PlanAsync("Turn on upstairs", []);
+
+        Assert.Equal("zone-upstairs", result.ProposedAction?.Target.Id);
+        Assert.Equal(HueOperation.TurnOn, result.ProposedAction?.Operation);
+    }
+
+    [Fact]
     public async Task UnknownTargetDoesNotExecute()
     {
         var hue = new FakeHueService([Office]);

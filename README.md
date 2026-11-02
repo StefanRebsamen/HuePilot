@@ -49,7 +49,9 @@ flowchart LR
     end
 ```
 
-The model proposes; HuePilot resolves discovered resources and validates every action before execution. The MCP server exposes the same bounded Hue service to external agents, with OpenCode approval required for mutations.
+The model proposes; HuePilot resolves discovered resources and validates every action before execution. One request may contain multiple actions, which are executed sequentially after validation. The chat can switch between structured JSON output and tool calling, and optionally displays the model exchange in expandable technical details.
+
+HuePilot also reports current light and room status. The MCP server exposes the same bounded Hue service to external agents, with OpenCode approval required for mutations.
 
 ## Run the app
 
@@ -64,6 +66,8 @@ dotnet user-secrets set "OpenAI:ApiKey" "<your-key>" --project src/HuePilot/HueP
 ```
 
 Without Bridge secrets, the app uses clearly labeled demo resources. Browse rooms, lights, scenes, and their room/zone associations at `/resources`.
+
+In the chat, use the **AI approach** selector to switch between structured output and tool calling. The choice is persisted in the browser and restored on reload. The initial approach when no choice has been saved is configured by `AI:Approach`; optional conversation logging can be enabled with `AI:LogConversation=true` and appears in expandable technical details.
 
 ## MCP server for OpenCode
 

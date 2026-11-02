@@ -110,14 +110,16 @@
     private static int TypeOrder(string type) => type.ToLowerInvariant() switch
     {
         "room" => 0,
-        "light" => 1,
-        "scene" => 2,
+        "zone" => 1,
+        "light" => 2,
+        "scene" => 3,
         _ => 3
     };
 
     private static string DisplayType(string type) => type.ToLowerInvariant() switch
     {
         "room" => "Rooms",
+        "zone" => "Zones",
         "light" => "Lights",
         "scene" => "Scenes",
         _ => $"{type}s"

@@ -3,7 +3,7 @@ namespace HuePilot.Application;
 /// <summary>Application boundary for reading Hue resources and executing validated actions.</summary>
 public interface IHueService
 {
-    /// <summary>Loads the rooms, lights, scenes, and their group associations.</summary>
+    /// <summary>Loads the rooms, zones, lights, scenes, and their group associations.</summary>
     /// <param name="cancellationToken">Cancels the Bridge request when the caller is canceled.</param>
     /// <returns>The resources currently available from Hue.</returns>
     Task<IReadOnlyList<HueResource>> GetResourcesAsync(CancellationToken cancellationToken = default);
@@ -13,7 +13,7 @@ public interface IHueService
     /// <param name="cancellationToken">Cancels the Bridge request when the caller is canceled.</param>
     Task ExecuteAsync(HueAction action, CancellationToken cancellationToken = default);
 
-    /// <summary>Gets the current status of a discovered light or room.</summary>
+    /// <summary>Gets the current status of a discovered light, room, or zone.</summary>
     Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Status reporting is not supported by this Hue service.");
 }

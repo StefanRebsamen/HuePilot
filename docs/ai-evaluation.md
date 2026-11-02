@@ -13,4 +13,4 @@ The runner reads the HuePilot `OpenAI:ApiKey` user secret. It may also use `OPEN
 
 The evaluation cases are intentionally small and editable. When changing a prompt, model, or approach, review failures rather than automatically weakening expectations. Model outputs can vary; run the same corpus more than once before drawing conclusions. Compare task success and safe abstention first, then call count and latency. The regular xUnit test suite stays deterministic and offline.
 
-To run the app with the tool-calling planner, set `AI:Approach` to `tools` in user secrets and restart the app. Omit that setting or set it to `structured` to use the baseline.
+The approach can be changed at runtime with the selector in the chat UI. `AI:Approach` in `appsettings.json` or user secrets sets the initial approach; supported values are `structured` and `tools`. To show application-to-model requests and responses in the chat, set `AI:LogConversation` to `true` in local configuration.

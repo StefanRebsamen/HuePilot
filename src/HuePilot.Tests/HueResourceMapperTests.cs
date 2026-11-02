@@ -50,5 +50,7 @@ public sealed class HueResourceMapperTests
         Assert.Contains(light.Groups!, group => group.Name == "Bedroom" && group.Type == "room");
         Assert.Contains(light.Groups!, group => group.Name == "Upstairs" && group.Type == "zone");
         Assert.Contains(scene.Groups!, group => group.Id == bedroomId.ToString() && group.Name == "Bedroom");
+        Assert.Contains(resources, resource => resource.Id == zoneId.ToString() &&
+            resource.Name == "Upstairs" && resource.Type == "zone");
     }
 }

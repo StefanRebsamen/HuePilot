@@ -36,7 +36,14 @@ public static class HueActionValidator
             return false;
         }
 
-        if (target.Type is not ("room" or "light" or "scene"))
+        if (intent.Operation == HueOperation.ListResources)
+        {
+            action = new(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
+            error = string.Empty;
+            return true;
+        }
+
+        if (target.Type is not ("room" or "zone" or "light" or "scene"))
         {
             error = "That Hue resource type isn't supported.";
             return false;
@@ -44,9 +51,9 @@ public static class HueActionValidator
 
         if (intent.Operation == HueOperation.GetStatus)
         {
-            if (target.Type is not ("room" or "light"))
+            if (target.Type is not ("room" or "zone" or "light"))
             {
-                error = "Hue status can only be reported for lights and rooms.";
+                error = "Hue status can only be reported for lights, rooms, and zones.";
                 return false;
             }
             action = new(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);

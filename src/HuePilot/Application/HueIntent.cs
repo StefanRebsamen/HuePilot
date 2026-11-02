@@ -5,8 +5,8 @@ namespace HuePilot.Application;
 /// resource is resolved and its operation and arguments are validated by the application.
 /// </summary>
 /// <param name="Operation">The requested operation, or <see langword="null"/> when it is unclear.</param>
-/// <param name="TargetName">The discovered room, light, or scene name.</param>
-/// <param name="TargetType">The resource kind: room, light, or scene.</param>
+/// <param name="TargetName">The discovered room, zone, light, or scene name.</param>
+/// <param name="TargetType">The resource kind: room, zone, light, or scene.</param>
 /// <param name="BrightnessPercent">Brightness from 1 through 100 for a brightness operation.</param>
 /// <param name="Color">A supported named color for a color operation.</param>
 /// <param name="TargetGroupName">Optional room or zone used to disambiguate an associated light or scene.</param>

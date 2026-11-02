@@ -8,6 +8,7 @@ public sealed class DemoHueService : IHueService
     private readonly IReadOnlyList<HueResource> _resources =
     [
         new("room-office", "Office", "room"),
+        new("zone-upstairs", "Upstairs", "zone"),
         new("light-desk", "Desk lamp", "light", [new("room-office", "Office", "room")]),
         new("light-ceiling", "Ceiling light", "light", [new("room-office", "Office", "room")]),
         new("scene-focus", "Focus", "scene", [new("room-office", "Office", "room")]),

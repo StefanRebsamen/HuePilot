@@ -61,6 +61,18 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
+    public async Task PowerToolCanTargetZone()
+    {
+        var zone = new HueResource("zone-upstairs", "Upstairs", "zone");
+        var hue = new FakeHueService([zone]);
+
+        var output = await HueMcpTools.SetHuePower("zone-upstairs", true, hue);
+
+        Assert.Contains("Applied TurnOn", output);
+        Assert.Equal("zone-upstairs", Assert.Single(hue.Executed).Target.Id);
+    }
+
+    [Fact]
     public async Task PowerToolCannotTargetScene()
     {
         var hue = new FakeHueService([Relax]);

@@ -1,5 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage LocalStorage
 @inject HueConversationService Conversation
 @inject IConfiguration Configuration
 @inject IAiCallDiagnostics AiDiagnostics
@@ -75,12 +77,32 @@
     private readonly List<ChatTurn> _history = [];
     private string _request = "";
     private bool _busy;
+    private bool _approachLoaded;
 
-    private void ChangeAiApproach(ChangeEventArgs args)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _approachLoaded)
+            return;
+
+        _approachLoaded = true;
+        var stored = await LocalStorage.GetAsync<string>(AiApproachPreferenceKey);
+        if (stored.Success && Enum.TryParse<AiApproach>(stored.Value, out var approach))
+        {
+            AiApproachState.Set(approach);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ChangeAiApproach(ChangeEventArgs args)
     {
         if (Enum.TryParse<AiApproach>(args.Value?.ToString(), out var approach))
+        {
             AiApproachState.Set(approach);
+            await LocalStorage.SetAsync(AiApproachPreferenceKey, approach.ToString());
+        }
     }
+
+    private const string AiApproachPreferenceKey = "huepilot.ai-approach";
 
     private async Task SubmitAsync()
     {

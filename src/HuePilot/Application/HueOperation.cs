@@ -14,5 +14,7 @@ public enum HueOperation
     /// <summary>Activates an existing Hue scene.</summary>
     ActivateScene,
     /// <summary>Reports the current state of a light or room.</summary>
-    GetStatus
+    GetStatus,
+    /// <summary>Lists matching rooms, zones, lights, or scenes from the discovered catalog.</summary>
+    ListResources
 }
