@@ -3,19 +3,26 @@ namespace HuePilot.Application;
 /// <summary>Deterministic checks that constrain a model-proposed intent to supported Hue actions.</summary>
 public static class HueActionValidator
 {
+    private static readonly string[] AllowedColors =
+    [
+        "red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink", "white", "warm white", "cool white"
+    ];
+
     /// <summary>Creates an executable action only when the intent matches the resolved resource and valid ranges.</summary>
     /// <param name="intent">The untrusted structured intent returned by an AI parser.</param>
     /// <param name="target">The exact Hue resource resolved by application code.</param>
-    /// <param name="action">The validated action, or <see langword="null"/> when rejected.</param>
+    /// <param name="action">The validated action, or <see langword="null" /> when rejected.</param>
     /// <param name="error">A user-readable rejection reason, or an empty string on success.</param>
-    /// <returns><see langword="true"/> when a safe action was created.</returns>
+    /// <returns><see langword="true" /> when a safe action was created.</returns>
     public static bool TryCreate(HueIntent intent, HueResource target, out HueAction? action, out string error)
     {
         action = null;
         error = "That action isn't supported.";
 
         if (intent.Operation is null)
+        {
             return false;
+        }
 
         if (intent.Operation == HueOperation.SetBrightness && intent.BrightnessPercent is not (>= 1 and <= 100))
         {
@@ -30,7 +37,8 @@ public static class HueActionValidator
         }
 
         // Keep the color vocabulary closed so arbitrary model text never reaches the Hue adapter.
-        if (intent.Operation == HueOperation.SetColor && !AllowedColors.Contains(intent.Color!.Trim(), StringComparer.OrdinalIgnoreCase))
+        if (intent.Operation == HueOperation.SetColor &&
+            !AllowedColors.Contains(intent.Color!.Trim(), StringComparer.OrdinalIgnoreCase))
         {
             error = "Please choose a named color such as red, orange, yellow, green, blue, purple, pink, or white.";
             return false;
@@ -38,7 +46,7 @@ public static class HueActionValidator
 
         if (intent.Operation == HueOperation.ListResources)
         {
-            action = new(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
+            action = new HueAction(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
             error = string.Empty;
             return true;
         }
@@ -56,27 +64,28 @@ public static class HueActionValidator
                 error = "Hue status can only be reported for lights, rooms, and zones.";
                 return false;
             }
-            action = new(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
+
+            action = new HueAction(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
             error = string.Empty;
             return true;
         }
 
-        if (intent.Operation == HueOperation.ActivateScene && !target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
+        if (intent.Operation == HueOperation.ActivateScene &&
+            !target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
         {
             error = "Only an existing scene can be activated as a scene.";
             return false;
         }
 
-        if (intent.Operation != HueOperation.ActivateScene && target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
+        if (intent.Operation != HueOperation.ActivateScene &&
+            target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
         {
             error = "That operation can't be applied to a scene.";
             return false;
         }
 
-        action = new(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
+        action = new HueAction(intent.Operation.Value, target, intent.BrightnessPercent, intent.Color);
         error = string.Empty;
         return true;
     }
-
-    private static readonly string[] AllowedColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink", "white", "warm white", "cool white"];
 }

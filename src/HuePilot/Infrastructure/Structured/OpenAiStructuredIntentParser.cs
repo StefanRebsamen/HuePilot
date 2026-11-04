@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using OpenAI.Chat;
 using HuePilot.Application;
+using OpenAI.Chat;
 
 namespace HuePilot.Infrastructure.Structured;
 
@@ -10,18 +10,18 @@ namespace HuePilot.Infrastructure.Structured;
 public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
 {
     private const string SystemPrompt = """
-        Convert the latest user request into one safe Philips Hue intent. Use only resources listed in the supplied catalog.
-        Resource groups describe where a light belongs or which room/zone a scene controls. Use the user's requested room/group to disambiguate duplicate resource names.
-        If the target is still ambiguous, the action is unsupported, or a value is outside the supported range,
-        return a concise clarificationQuestion and no operation. Do not guess, clamp, or silently substitute values.
-        Report GetStatus for requests asking whether a light, room, or zone is on or off, or for its current brightness.
-        Report ListResources for catalog questions such as what lights, rooms, zones, or scenes are available. For ListResources, targetType is the requested category (light, room, scene, or zone), and targetName is an optional room or zone used as the scope; targetGroupName can contain the same scope.
-        Supported colors are red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, and cool white.
-        Return JSON with an "intents" array. For each action use fields: operation (TurnOn, TurnOff, SetBrightness, SetColor, ActivateScene, GetStatus, ListResources, or null),
-        targetName, targetType (room, zone, light, or scene), targetGroupName, targetGroupType (room or zone, or null),
-        brightnessPercent (integer 1-100 or null), color (plain color name or null), clarificationQuestion.
-        Never invent resource names, IDs, or associations.
-        """;
+                                        Convert the latest user request into one safe Philips Hue intent. Use only resources listed in the supplied catalog.
+                                        Resource groups describe where a light belongs or which room/zone a scene controls. Use the user's requested room/group to disambiguate duplicate resource names.
+                                        If the target is still ambiguous, the action is unsupported, or a value is outside the supported range,
+                                        return a concise clarificationQuestion and no operation. Do not guess, clamp, or silently substitute values.
+                                        Report GetStatus for requests asking whether a light, room, or zone is on or off, or for its current brightness.
+                                        Report ListResources for catalog questions such as what lights, rooms, zones, or scenes are available. For ListResources, targetType is the requested category (light, room, scene, or zone), and targetName is an optional room or zone used as the scope; targetGroupName can contain the same scope.
+                                        Supported colors are red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, and cool white.
+                                        Return JSON with an "intents" array. For each action use fields: operation (TurnOn, TurnOff, SetBrightness, SetColor, ActivateScene, GetStatus, ListResources, or null),
+                                        targetName, targetType (room, zone, light, or scene), targetGroupName, targetGroupType (room or zone, or null),
+                                        brightnessPercent (integer 1-100 or null), color (plain color name or null), clarificationQuestion.
+                                        Never invent resource names, IDs, or associations.
+                                        """;
 
     /// <inheritdoc />
     public int LastModelCallCount { get; private set; }
@@ -33,24 +33,31 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
     public string LastConversationLog { get; private set; } = "";
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<HueIntent>> ParseAsync(
-        string request,
-        IReadOnlyList<ChatTurn> history,
-        IReadOnlyList<HueResource> availableResources,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
+        IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
         LastModelCallCount = 0;
         LastConversationLog = "";
         var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
-            throw new InvalidOperationException("OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
+        {
+            throw new InvalidOperationException(
+                "OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
+        }
 
-        var client = new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini", apiKey);
+        var client = new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
+            apiKey);
         var messages = new List<ChatMessage> { new SystemChatMessage(SystemPrompt) };
         foreach (var turn in history.TakeLast(12))
         {
-            if (turn.Role == "user") messages.Add(new UserChatMessage(turn.Content));
-            else if (turn.Role == "assistant") messages.Add(new AssistantChatMessage(turn.Content));
+            if (turn.Role == "user")
+            {
+                messages.Add(new UserChatMessage(turn.Content));
+            }
+            else if (turn.Role == "assistant")
+            {
+                messages.Add(new AssistantChatMessage(turn.Content));
+            }
         }
 
         var catalog = JsonSerializer.Serialize(availableResources.Select(resource => new
@@ -63,8 +70,8 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         var options = new ChatCompletionOptions { ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat() };
         var completion = await client.CompleteChatAsync(messages, options, cancellationToken);
         LastModelCallCount = 1;
-        var json = completion.Value.Content.FirstOrDefault()?.Text
-            ?? throw new InvalidOperationException("The AI provider returned no intent.");
+        var json = completion.Value.Content.FirstOrDefault()?.Text ??
+                   throw new InvalidOperationException("The AI provider returned no intent.");
         LastConversationLog = $"User request:\n{request}\n\nModel response:\n{json}";
 
         // JSON mode guarantees syntax, not safe semantics; HueConversationService resolves and validates the result.
@@ -73,15 +80,18 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         using var document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty("intents", out var intentsElement))
         {
-            var singleIntent = JsonSerializer.Deserialize<HueIntent>(json, jsonOptions)
-                ?? throw new InvalidOperationException("The AI provider returned an invalid intent.");
+            var singleIntent = JsonSerializer.Deserialize<HueIntent>(json, jsonOptions) ??
+                               throw new InvalidOperationException("The AI provider returned an invalid intent.");
             return [singleIntent];
         }
 
-        var intents = JsonSerializer.Deserialize<List<HueIntent>>(intentsElement.GetRawText(), jsonOptions)
-            ?? throw new InvalidOperationException("The AI provider returned an invalid intent list.");
+        var intents = JsonSerializer.Deserialize<List<HueIntent>>(intentsElement.GetRawText(), jsonOptions) ??
+                      throw new InvalidOperationException("The AI provider returned an invalid intent list.");
         if (intents.Count == 0)
+        {
             throw new InvalidOperationException("The AI provider returned no intents.");
+        }
+
         return intents;
     }
 }

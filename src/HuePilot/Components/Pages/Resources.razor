@@ -11,14 +11,16 @@
     <div class="resources-heading">
         <div>
             <h1>Hue resources</h1>
-            <p>Lights and scenes show the rooms or zones they belong to; activating a scene applies it to its associated group.</p>
+            <p>Lights and scenes show the rooms or zones they belong to; activating a scene applies it to its associated
+                group.</p>
         </div>
         <button type="button" @onclick="LoadAsync" disabled="@_loading">@(_loading ? "Refreshing…" : "Refresh")</button>
     </div>
 
     @if (string.IsNullOrWhiteSpace(Configuration["Bridge:IpAddress"]) || string.IsNullOrWhiteSpace(Configuration["Bridge:ApplicationKey"]))
     {
-        <p class="demo-notice">Demo mode · These are sample resources. Configure a Hue Bridge in <a href="/setup">Bridge setup</a> to see your devices.</p>
+        <p class="demo-notice">Demo mode · These are sample resources. Configure a Hue Bridge in <a href="/setup">Bridge
+                setup</a> to see your devices.</p>
     }
     else
     {
@@ -31,7 +33,10 @@
             <p>@_error</p>
             @if (!string.IsNullOrWhiteSpace(_technicalDetails))
             {
-                <details><summary>Technical details</summary><pre>@_technicalDetails</pre></details>
+                <details>
+                    <summary>Technical details</summary>
+                    <pre>@_technicalDetails</pre>
+                </details>
             }
         </section>
     }
@@ -61,7 +66,8 @@
                                         <span>@AssociationLabel(resource.Type)</span>
                                         @foreach (var association in resource.Groups)
                                         {
-                                            <span class="association-chip">@association.Name <small>@association.Type</small></span>
+                                            <span
+                                                class="association-chip">@association.Name <small>@association.Type</small></span>
                                         }
                                     </div>
                                 }
@@ -85,7 +91,10 @@
     private string? _error;
     private string? _technicalDetails;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        return LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -107,28 +116,38 @@
         }
     }
 
-    private static int TypeOrder(string type) => type.ToLowerInvariant() switch
+    private static int TypeOrder(string type)
     {
-        "room" => 0,
-        "zone" => 1,
-        "light" => 2,
-        "scene" => 3,
-        _ => 3
-    };
+        return type.ToLowerInvariant() switch
+        {
+            "room" => 0,
+            "zone" => 1,
+            "light" => 2,
+            "scene" => 3,
+            _ => 3
+        };
+    }
 
-    private static string DisplayType(string type) => type.ToLowerInvariant() switch
+    private static string DisplayType(string type)
     {
-        "room" => "Rooms",
-        "zone" => "Zones",
-        "light" => "Lights",
-        "scene" => "Scenes",
-        _ => $"{type}s"
-    };
+        return type.ToLowerInvariant() switch
+        {
+            "room" => "Rooms",
+            "zone" => "Zones",
+            "light" => "Lights",
+            "scene" => "Scenes",
+            _ => $"{type}s"
+        };
+    }
 
-    private static string AssociationLabel(string type) => type.ToLowerInvariant() switch
+    private static string AssociationLabel(string type)
     {
-        "light" => "In:",
-        "scene" => "Applies to:",
-        _ => "Associated with:"
-    };
+        return type.ToLowerInvariant() switch
+        {
+            "light" => "In:",
+            "scene" => "Applies to:",
+            _ => "Associated with:"
+        };
+    }
+
 }

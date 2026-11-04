@@ -1,3 +1,4 @@
+using System.Net;
 using HueApi;
 using HueApi.BridgeLocator;
 
@@ -22,8 +23,10 @@ public sealed class HueBridgeSetupService
     /// <returns>The Bridge application key; callers must store it as a secret.</returns>
     public async Task<string> PairAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
-        if (!System.Net.IPAddress.TryParse(ipAddress, out _))
+        if (!IPAddress.TryParse(ipAddress, out _))
+        {
             throw new ArgumentException("Enter a valid local Bridge IP address.", nameof(ipAddress));
+        }
 
         var result = await LocalHueApi.RegisterAsync(ipAddress, "HuePilot", "HuePilot", false, cancellationToken);
         return result?.Username ?? throw new InvalidOperationException("The Bridge did not return an application key.");

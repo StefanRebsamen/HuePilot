@@ -2,7 +2,10 @@ using HuePilot.Application;
 
 namespace HuePilot.Infrastructure;
 
-/// <summary>Stores the selected AI approach for the current browser circuit. The UI also persists the choice in protected browser storage.</summary>
+/// <summary>
+/// Stores the selected AI approach for the current browser circuit. The UI also persists the choice in protected
+/// browser storage.
+/// </summary>
 public sealed class AiApproachState
 {
     /// <summary>Creates circuit state from application defaults.</summary>
@@ -17,5 +20,8 @@ public sealed class AiApproachState
     public AiApproach Current { get; private set; }
 
     /// <summary>Changes the approach used by subsequent requests.</summary>
-    public void Set(AiApproach approach) => Current = approach;
+    public void Set(AiApproach approach)
+    {
+        Current = approach;
+    }
 }

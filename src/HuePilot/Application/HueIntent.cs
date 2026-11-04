@@ -1,10 +1,10 @@
 namespace HuePilot.Application;
 
 /// <summary>
-/// A model-produced interpretation of a user's request. It is untrusted until a discovered
-/// resource is resolved and its operation and arguments are validated by the application.
+/// A model-produced interpretation of a user's request. It is untrusted until a discovered resource is resolved
+/// and its operation and arguments are validated by the application.
 /// </summary>
-/// <param name="Operation">The requested operation, or <see langword="null"/> when it is unclear.</param>
+/// <param name="Operation">The requested operation, or <see langword="null" /> when it is unclear.</param>
 /// <param name="TargetName">The discovered room, zone, light, or scene name.</param>
 /// <param name="TargetType">The resource kind: room, zone, light, or scene.</param>
 /// <param name="BrightnessPercent">Brightness from 1 through 100 for a brightness operation.</param>

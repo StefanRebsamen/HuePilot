@@ -5,6 +5,7 @@ public enum AiApproach
 {
     /// <summary>Structured JSON output.</summary>
     Structured,
+
     /// <summary>Bounded tool calling.</summary>
     Tools
 }

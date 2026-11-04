@@ -1,15 +1,18 @@
+using System.Net.Sockets;
 using HuePilot.Application;
 using HuePilot.Mcp;
-using System.Net.Http;
-using System.Net.Sockets;
 
 namespace HuePilot.Tests;
 
 public sealed class HueMcpToolsTests
 {
-    private static readonly HueResource Desk = new("light-desk", "Desk", "light", [new("room-office", "Office", "room")]);
+    private static readonly HueResource Desk = new("light-desk", "Desk", "light",
+        [new HueResourceGroup("room-office", "Office", "room")]);
+
     private static readonly HueResource Office = new("room-office", "Office", "room");
-    private static readonly HueResource Relax = new("scene-relax", "Relax", "scene", [new("room-office", "Office", "room")]);
+
+    private static readonly HueResource Relax = new("scene-relax", "Relax", "scene",
+        [new HueResourceGroup("room-office", "Office", "room")]);
 
     [Fact]
     public async Task ListResourcesReturnsNamesTypesAndIds()
@@ -97,7 +100,7 @@ public sealed class HueMcpToolsTests
     [Fact]
     public async Task SceneToolValidatesRequestedRoomAssociation()
     {
-        var hue = new FakeHueService([Relax, new("room-kitchen", "Kitchen", "room")]);
+        var hue = new FakeHueService([Relax, new HueResource("room-kitchen", "Kitchen", "room")]);
 
         var mismatch = await HueMcpTools.ActivateHueScene("scene-relax", "room-kitchen", hue);
         var match = await HueMcpTools.ActivateHueScene("scene-relax", "room-office", hue);
@@ -110,7 +113,8 @@ public sealed class HueMcpToolsTests
     [Fact]
     public async Task ResourceLookupExplainsBridgeNetworkFailure()
     {
-        var hue = new FakeHueService([], new HttpRequestException("network unavailable", new SocketException((int)SocketError.HostUnreachable)));
+        var hue = new FakeHueService([],
+            new HttpRequestException("network unavailable", new SocketException((int)SocketError.HostUnreachable)));
 
         var output = await HueMcpTools.ListHueResources(hueService: hue);
 
@@ -118,12 +122,18 @@ public sealed class HueMcpToolsTests
         Assert.Contains("HostUnreachable", output);
     }
 
-    private sealed class FakeHueService(IReadOnlyList<HueResource> resources, Exception? resourceError = null) : IHueService
+    private sealed class FakeHueService(IReadOnlyList<HueResource> resources, Exception? resourceError = null)
+        : IHueService
     {
         public List<HueAction> Executed { get; } = [];
-        public Task<IReadOnlyList<HueResource>> GetResourcesAsync(CancellationToken cancellationToken = default) => resourceError is null
-            ? Task.FromResult(resources)
-            : Task.FromException<IReadOnlyList<HueResource>>(resourceError);
+
+        public Task<IReadOnlyList<HueResource>> GetResourcesAsync(CancellationToken cancellationToken = default)
+        {
+            return resourceError is null
+                ? Task.FromResult(resources)
+                : Task.FromException<IReadOnlyList<HueResource>>(resourceError);
+        }
+
         public Task ExecuteAsync(HueAction action, CancellationToken cancellationToken = default)
         {
             Executed.Add(action);

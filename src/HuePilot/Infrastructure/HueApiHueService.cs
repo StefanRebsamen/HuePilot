@@ -1,4 +1,6 @@
+using System.Globalization;
 using HueApi;
+using HueApi.Models;
 using HueApi.Models.Requests;
 using HuePilot.Application;
 using AppHueResource = HuePilot.Application.HueResource;
@@ -9,8 +11,8 @@ namespace HuePilot.Infrastructure;
 /// <param name="configuration">Configuration containing Bridge address and application key secrets.</param>
 public sealed class HueApiHueService(IConfiguration configuration) : IHueService
 {
-    private readonly string _bridgeIp = configuration["Bridge:IpAddress"] ?? "";
     private readonly string _applicationKey = configuration["Bridge:ApplicationKey"] ?? "";
+    private readonly string _bridgeIp = configuration["Bridge:IpAddress"] ?? "";
 
     /// <summary>Indicates whether both required Bridge settings are present.</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_bridgeIp) && !string.IsNullOrWhiteSpace(_applicationKey);
@@ -30,10 +32,12 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     }
 
     /// <inheritdoc />
-    public async Task<string> GetStatusAsync(Application.HueResource resource, CancellationToken cancellationToken = default)
+    public async Task<string> GetStatusAsync(AppHueResource resource, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(resource.Id, out var resourceId))
+        {
             throw new InvalidOperationException("The Hue resource identifier is invalid.");
+        }
 
         var api = CreateApi();
         if (resource.Type.Equals("light", StringComparison.OrdinalIgnoreCase))
@@ -41,22 +45,26 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
             var light = (await api.Light.GetAllAsync()).Data.Single(x => x.Id == resourceId);
             var brightness = light.Dimming?.Brightness;
             return light.On?.IsOn == true
-                ? $"{resource.Name} is on" + (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
+                ? $"{resource.Name} is on" +
+                  (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
                 : $"{resource.Name} is off.";
         }
 
         if (resource.Type.Equals("room", StringComparison.OrdinalIgnoreCase) ||
             resource.Type.Equals("zone", StringComparison.OrdinalIgnoreCase))
         {
-            var groupedLightId = await FindGroupedLightIdAsync(
-                api, resourceId, resource.Type, cancellationToken);
+            var groupedLightId = await FindGroupedLightIdAsync(api, resourceId, resource.Type, cancellationToken);
             if (groupedLightId is null)
-                throw new InvalidOperationException($"Hue Bridge did not return a grouped light for {resource.Type} ‘{resource.Name}’.");
+            {
+                throw new InvalidOperationException(
+                    $"Hue Bridge did not return a grouped light for {resource.Type} ‘{resource.Name}’.");
+            }
 
             var groupedLight = (await api.GroupedLight.GetAllAsync()).Data.Single(x => x.Id == groupedLightId.Value);
             var brightness = groupedLight.Dimming?.Brightness;
             return groupedLight.On?.IsOn == true
-                ? $"{resource.Name} is on" + (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
+                ? $"{resource.Name} is on" +
+                  (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
                 : $"{resource.Name} is off.";
         }
 
@@ -69,21 +77,28 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         var api = CreateApi();
         var resources = await GetResourcesAsync(cancellationToken);
         var current = resources.SingleOrDefault(x => x.Id == action.Target.Id &&
-            x.Type.Equals(action.Target.Type, StringComparison.OrdinalIgnoreCase));
+                                                     x.Type.Equals(action.Target.Type,
+                                                         StringComparison.OrdinalIgnoreCase));
         if (current is null)
+        {
             throw new InvalidOperationException("That Hue resource is no longer available. Please try again.");
+        }
 
         if (!Guid.TryParse(current.Id, out var resourceId))
+        {
             throw new InvalidOperationException("The Hue resource identifier is invalid.");
+        }
 
         switch (action.Operation)
         {
             case HueOperation.ActivateScene:
-                if (current.Type != "scene") throw new InvalidOperationException("Only an existing scene can be activated.");
-                await api.Scene.UpdateAsync(resourceId, new UpdateScene
+                if (current.Type != "scene")
                 {
-                    Recall = new Recall { Action = SceneRecallAction.active }
-                });
+                    throw new InvalidOperationException("Only an existing scene can be activated.");
+                }
+
+                await api.Scene.UpdateAsync(resourceId,
+                    new UpdateScene { Recall = new Recall { Action = SceneRecallAction.active } });
                 break;
             case HueOperation.TurnOn:
             case HueOperation.TurnOff:
@@ -101,7 +116,10 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
                         api, resourceId, current.Type, cancellationToken);
 
                     if (groupedLightId is null)
-                        throw new InvalidOperationException($"Hue Bridge did not return a grouped light owned by {current.Type} ‘{current.Name}’.");
+                    {
+                        throw new InvalidOperationException(
+                            $"Hue Bridge did not return a grouped light owned by {current.Type} ‘{current.Name}’.");
+                    }
 
                     await api.GroupedLight.UpdateAsync(groupedLightId.Value, BuildGroupedUpdate(action));
                     break;
@@ -116,23 +134,29 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     private LocalHueApi CreateApi()
     {
         if (!IsConfigured)
-            throw new InvalidOperationException("Hue Bridge is not configured. Visit /setup to pair a Bridge and add its settings as user secrets.");
+        {
+            throw new InvalidOperationException(
+                "Hue Bridge is not configured. Visit /setup to pair a Bridge and add its settings as user secrets.");
+        }
+
         return new LocalHueApi(_bridgeIp, _applicationKey);
     }
 
-    private static async Task<Guid?> FindGroupedLightIdAsync(
-        LocalHueApi api, Guid groupId, string groupType, CancellationToken cancellationToken)
+    private static async Task<Guid?> FindGroupedLightIdAsync(LocalHueApi api, Guid groupId, string groupType,
+        CancellationToken cancellationToken)
     {
-        IReadOnlyList<HueApi.Models.ResourceIdentifier>? groupedServices;
+        IReadOnlyList<ResourceIdentifier>? groupedServices;
         if (groupType.Equals("room", StringComparison.OrdinalIgnoreCase))
         {
             var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == groupId);
             groupedServices = room.GroupedServices;
 
-                var configuredId = groupedServices
-                    .FirstOrDefault(x => x.Rtype.Equals("grouped_light", StringComparison.OrdinalIgnoreCase))?.Rid;
-                if (configuredId is not null)
-                    return configuredId;
+            var configuredId = groupedServices
+                .FirstOrDefault(x => x.Rtype.Equals("grouped_light", StringComparison.OrdinalIgnoreCase))?.Rid;
+            if (configuredId is not null)
+            {
+                return configuredId;
+            }
         }
         else
         {
@@ -151,7 +175,8 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         {
             HueOperation.TurnOn => update.TurnOn(),
             HueOperation.TurnOff => update.TurnOff(),
-            HueOperation.SetBrightness when action.BrightnessPercent is >= 1 and <= 100 => update.SetBrightness(action.BrightnessPercent.Value),
+            HueOperation.SetBrightness when action.BrightnessPercent is >= 1 and <= 100 => update.SetBrightness(
+                action.BrightnessPercent.Value),
             HueOperation.SetColor when TryGetColor(action.Color, out var rgb) => update.SetColor(rgb),
             _ => throw new InvalidOperationException("The requested light change is invalid.")
         };
@@ -164,7 +189,8 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         {
             HueOperation.TurnOn => update.TurnOn(),
             HueOperation.TurnOff => update.TurnOff(),
-            HueOperation.SetBrightness when action.BrightnessPercent is >= 1 and <= 100 => update.SetBrightness(action.BrightnessPercent.Value),
+            HueOperation.SetBrightness when action.BrightnessPercent is >= 1 and <= 100 => update.SetBrightness(
+                action.BrightnessPercent.Value),
             HueOperation.SetColor when TryGetColor(action.Color, out var rgb) => update.SetColor(rgb),
             _ => throw new InvalidOperationException("The requested room change is invalid.")
         };
@@ -174,10 +200,19 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     {
         var hex = color?.Trim().ToLowerInvariant() switch
         {
-            "red" => "FF0000", "orange" => "FF8000", "yellow" => "FFFF00", "green" => "00FF00",
-            "cyan" => "00FFFF", "blue" => "0000FF", "purple" => "8000FF", "pink" => "FF69B4",
-            "white" => "FFFFFF", "warm white" => "FFD6A1", "cool white" => "D6E8FF", _ => null
+            "red" => "FF0000",
+            "orange" => "FF8000",
+            "yellow" => "FFFF00",
+            "green" => "00FF00",
+            "cyan" => "00FFFF",
+            "blue" => "0000FF",
+            "purple" => "8000FF",
+            "pink" => "FF69B4",
+            "white" => "FFFFFF",
+            "warm white" => "FFD6A1",
+            "cool white" => "D6E8FF",
+            _ => null
         };
-        return int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out rgb);
+        return int.TryParse(hex, NumberStyles.HexNumber, null, out rgb);
     }
 }

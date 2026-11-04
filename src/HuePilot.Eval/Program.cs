@@ -1,18 +1,17 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Diagnostics;
 using HuePilot.Application;
 using HuePilot.Infrastructure;
 using HuePilot.Infrastructure.Structured;
 using HuePilot.Infrastructure.ToolCalling;
 using Microsoft.Extensions.Configuration;
 
-var configuration = new ConfigurationBuilder()
-    .AddUserSecrets(typeof(OpenAiStructuredIntentParser).Assembly, optional: true)
-    .AddEnvironmentVariables()
-    .Build();
+var configuration = new ConfigurationBuilder().AddUserSecrets(typeof(OpenAiStructuredIntentParser).Assembly, true)
+    .AddEnvironmentVariables().Build();
 
-if (string.IsNullOrWhiteSpace(configuration["OpenAI:ApiKey"]) && string.IsNullOrWhiteSpace(configuration["OPENAI_API_KEY"]))
+if (string.IsNullOrWhiteSpace(configuration["OpenAI:ApiKey"]) &&
+    string.IsNullOrWhiteSpace(configuration["OPENAI_API_KEY"]))
 {
     Console.Error.WriteLine("OpenAI key is missing. Set the HuePilot user secret OpenAI:ApiKey or OPENAI_API_KEY.");
     return 2;
@@ -21,8 +20,8 @@ if (string.IsNullOrWhiteSpace(configuration["OpenAI:ApiKey"]) && string.IsNullOr
 var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 jsonOptions.Converters.Add(new JsonStringEnumConverter());
 var casesPath = Path.Combine(AppContext.BaseDirectory, "eval-cases.json");
-var cases = JsonSerializer.Deserialize<EvalCase[]>(await File.ReadAllTextAsync(casesPath), jsonOptions)
-    ?? throw new InvalidOperationException("The evaluation cases file is empty or invalid.");
+var cases = JsonSerializer.Deserialize<EvalCase[]>(await File.ReadAllTextAsync(casesPath), jsonOptions) ??
+            throw new InvalidOperationException("The evaluation cases file is empty or invalid.");
 var approach = args.FirstOrDefault()?.ToLowerInvariant() ?? "structured";
 if (approach is not ("structured" or "tools"))
 {
@@ -38,9 +37,9 @@ var resources = new List<HueResource>
     new("room-office", "Office", "room"),
     new("light-desk", "Desk", "light"),
     new("light-buddha", "Buddha", "light"),
-    new("scene-relax-1", "Relax", "scene", [new("room-bedroom", "Bedroom", "room")]),
-    new("scene-relax-2", "Relax", "scene", [new("room-kitchen", "Kitchen", "room")]),
-    new("scene-relax-3", "Relax", "scene", [new("room-living", "Living room", "room")])
+    new("scene-relax-1", "Relax", "scene", [new HueResourceGroup("room-bedroom", "Bedroom", "room")]),
+    new("scene-relax-2", "Relax", "scene", [new HueResourceGroup("room-kitchen", "Kitchen", "room")]),
+    new("scene-relax-3", "Relax", "scene", [new HueResourceGroup("room-living", "Living room", "room")])
 };
 
 var hue = new FakeHueService(resources);
@@ -70,16 +69,28 @@ foreach (var testCase in cases)
             matches &= action.Operation == expected.Operation;
             matches &= EqualsIgnoreCase(action.Target.Name, expected.TargetName);
             matches &= EqualsIgnoreCase(action.Target.Type, expected.TargetType);
-            if (expected.BrightnessPercent is not null) matches &= action.BrightnessPercent == expected.BrightnessPercent;
-            if (expected.Color is not null) matches &= EqualsIgnoreCase(action.Color, expected.Color);
+            if (expected.BrightnessPercent is not null)
+            {
+                matches &= action.BrightnessPercent == expected.BrightnessPercent;
+            }
+
+            if (expected.Color is not null)
+            {
+                matches &= EqualsIgnoreCase(action.Color, expected.Color);
+            }
+
             if (expected.TargetGroupName is not null)
-                matches &= (action.Target.Groups ?? []).Any(group => EqualsIgnoreCase(group.Name, expected.TargetGroupName));
+            {
+                matches &= (action.Target.Groups ?? []).Any(group =>
+                    EqualsIgnoreCase(group.Name, expected.TargetGroupName));
+            }
         }
 
         if (matches)
         {
             passed++;
-            Console.WriteLine($"PASS  {testCase.Name}: {plan.AssistantMessage} [{diagnostics.LastModelCallCount} model call(s), {diagnostics.LastToolCallCount} tool call(s)]");
+            Console.WriteLine(
+                $"PASS  {testCase.Name}: {plan.AssistantMessage} [{diagnostics.LastModelCallCount} model call(s), {diagnostics.LastToolCallCount} tool call(s)]");
         }
         else
         {
@@ -102,12 +113,18 @@ foreach (var testCase in cases)
     }
 }
 
-Console.WriteLine($"\nResult: {passed}/{cases.Length} passed. Model calls: {modelCalls}. Tool calls: {toolCalls}. Elapsed: {elapsedTotal.TotalSeconds:F1}s. Hue mutations: {hue.Executed.Count}.");
+Console.WriteLine(
+    $"\nResult: {passed}/{cases.Length} passed. Model calls: {modelCalls}. Tool calls: {toolCalls}. Elapsed: {elapsedTotal.TotalSeconds:F1}s. Hue mutations: {hue.Executed.Count}.");
 return passed == cases.Length && hue.Executed.Count == 0 ? 0 : 1;
 
-static bool EqualsIgnoreCase(string? left, string? right) =>
-    string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+static bool EqualsIgnoreCase(string? left, string? right)
+{
+    return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+}
 
-static string ExpectedDescription(EvalExpectation expected) => expected.NeedsClarification
-    ? "a clarification with no action"
-    : $"{expected.Operation} {expected.TargetType} '{expected.TargetName}'";
+static string ExpectedDescription(EvalExpectation expected)
+{
+    return expected.NeedsClarification
+        ? "a clarification with no action"
+        : $"{expected.Operation} {expected.TargetType} '{expected.TargetName}'";
+}

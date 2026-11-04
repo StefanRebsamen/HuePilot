@@ -7,8 +7,8 @@ namespace HuePilot.Infrastructure;
 /// <summary>Selects an intent parser for each request based on circuit state.</summary>
 public sealed class DynamicIntentParser : IIntentParser, IAiCallDiagnostics
 {
-    private readonly AiApproachState state;
     private readonly IConfiguration configuration;
+    private readonly AiApproachState state;
     private IIntentParser? active;
 
     /// <summary>Creates the dynamic parser.</summary>
@@ -19,18 +19,21 @@ public sealed class DynamicIntentParser : IIntentParser, IAiCallDiagnostics
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history, IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
+    public int LastModelCallCount => (active as IAiCallDiagnostics)?.LastModelCallCount ?? 0;
+
+    /// <inheritdoc />
+    public int LastToolCallCount => (active as IAiCallDiagnostics)?.LastToolCallCount ?? 0;
+
+    /// <inheritdoc />
+    public string LastConversationLog => (active as IAiCallDiagnostics)?.LastConversationLog ?? "";
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
+        IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
         active = state.Current == AiApproach.Tools
             ? new OpenAiToolCallingIntentParser(configuration)
             : new OpenAiStructuredIntentParser(configuration);
         return await active.ParseAsync(request, history, availableResources, cancellationToken);
     }
-
-    /// <inheritdoc />
-    public int LastModelCallCount => (active as IAiCallDiagnostics)?.LastModelCallCount ?? 0;
-    /// <inheritdoc />
-    public int LastToolCallCount => (active as IAiCallDiagnostics)?.LastToolCallCount ?? 0;
-    /// <inheritdoc />
-    public string LastConversationLog => (active as IAiCallDiagnostics)?.LastConversationLog ?? "";
 }

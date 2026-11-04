@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Net.Http;
 using System.Net.Sockets;
 using System.Text.Json;
 using HuePilot.Application;
@@ -8,42 +7,50 @@ using ModelContextProtocol.Server;
 namespace HuePilot.Mcp;
 
 /// <summary>
-/// Exposes a narrow set of Hue discovery and control tools to MCP clients.
-/// Every mutation is resolved against current Bridge resources and reuses HuePilot's application validator.
+/// Exposes a narrow set of Hue discovery and control tools to MCP clients. Every mutation is resolved against
+/// current Bridge resources and reuses HuePilot's application validator.
 /// </summary>
 [McpServerToolType]
 public static class HueMcpTools
 {
-    /// <summary>Returns currently discovered rooms, zones, lights, scenes, and their group associations without changing device state.</summary>
+    /// <summary>
+    /// Returns currently discovered rooms, zones, lights, scenes, and their group associations without changing
+    /// device state.
+    /// </summary>
     /// <param name="type">Optional resource type filter: all, room, zone, light, or scene.</param>
     /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
     /// <param name="cancellationToken">Cancels the Bridge lookup if the MCP client cancels the request.</param>
     /// <returns>JSON describing each matching resource and its room/zone associations.</returns>
-    [McpServerTool(Name = "list_hue_resources", Title = "List Hue rooms, zones, lights, and scenes"),
-     Description("Read-only. List Hue resources and their IDs. Use a returned resource ID with the control tools; never guess an ID.")]
+    [McpServerTool(Name = "list_hue_resources", Title = "List Hue rooms, zones, lights, and scenes")]
+    [Description(
+        "Read-only. List Hue resources and their IDs. Use a returned resource ID with the control tools; never guess an ID.")]
     public static async Task<string> ListHueResources(
         [Description("Filter by resource type: all, room, zone, light, or scene.")] string type = "all",
-        IHueService? hueService = null,
-        CancellationToken cancellationToken = default)
+        IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
-        if (hueService is null) throw new InvalidOperationException("Hue service is unavailable.");
+        if (hueService is null)
+        {
+            throw new InvalidOperationException("Hue service is unavailable.");
+        }
+
         if (type is not ("all" or "room" or "zone" or "light" or "scene"))
+        {
             return "Not applied: type must be all, room, zone, light, or scene.";
+        }
 
         try
         {
             var resources = await hueService.GetResourcesAsync(cancellationToken);
             var selected = resources
                 .Where(resource => type == "all" || resource.Type.Equals(type, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(resource => resource.Type)
-                .ThenBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(resource => new
-            {
-                resource.Id,
-                resource.Name,
-                resource.Type,
-                groups = (resource.Groups ?? []).Select(group => new { group.Id, group.Name, group.Type })
-            });
+                .OrderBy(resource => resource.Type).ThenBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(resource => new
+                {
+                    resource.Id,
+                    resource.Name,
+                    resource.Type,
+                    groups = (resource.Groups ?? []).Select(group => new { group.Id, group.Name, group.Type })
+                });
             return JsonSerializer.Serialize(selected, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (HttpRequestException ex)
@@ -53,99 +60,123 @@ public static class HueMcpTools
     }
 
     /// <summary>Turns one currently discovered light, room, or zone on or off.</summary>
-    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources"/>.</param>
-    /// <param name="on"><see langword="true"/> to turn on; <see langword="false"/> to turn off.</param>
+    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources" />.</param>
+    /// <param name="on"><see langword="true" /> to turn on; <see langword="false" /> to turn off.</param>
     /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
     /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
     /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
-    [McpServerTool(Name = "set_hue_power", Title = "Turn a Hue light or room on or off"),
-     Description("Changes power for one discovered Hue light, room, or zone. This controls real devices. Call list_hue_resources first and use its exact ID.")]
+    [McpServerTool(Name = "set_hue_power", Title = "Turn a Hue light or room on or off")]
+    [Description(
+        "Changes power for one discovered Hue light, room, or zone. This controls real devices. Call list_hue_resources first and use its exact ID.")]
     public static Task<string> SetHuePower(
         [Description("Exact ID of a discovered light, room, or zone from list_hue_resources.")] string resourceId,
-        [Description("True to turn on; false to turn off.")] bool on,
-        IHueService? hueService = null,
-        CancellationToken cancellationToken = default) =>
-        ApplyAsync(resourceId, on ? HueOperation.TurnOn : HueOperation.TurnOff, null, null, null, ["light", "room", "zone"], hueService, cancellationToken);
+        [Description("True to turn on; false to turn off.")] bool on, IHueService? hueService = null,
+        CancellationToken cancellationToken = default)
+    {
+        return ApplyAsync(resourceId, on ? HueOperation.TurnOn : HueOperation.TurnOff, null, null, null,
+            ["light", "room", "zone"], hueService, cancellationToken);
+    }
 
     /// <summary>Sets brightness on one currently discovered light or room.</summary>
-    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources" />.</param>
     /// <param name="brightnessPercent">Whole-number brightness from 1 through 100.</param>
     /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
     /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
     /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
-    [McpServerTool(Name = "set_hue_brightness", Title = "Set Hue brightness"),
-     Description("Sets brightness on one discovered Hue light or room to a whole-number percentage from 1 to 100. This controls real devices. Use an exact ID from list_hue_resources.")]
+    [McpServerTool(Name = "set_hue_brightness", Title = "Set Hue brightness")]
+    [Description(
+        "Sets brightness on one discovered Hue light or room to a whole-number percentage from 1 to 100. This controls real devices. Use an exact ID from list_hue_resources.")]
     public static Task<string> SetHueBrightness(
         [Description("Exact ID of a discovered light or room from list_hue_resources.")] string resourceId,
         [Description("Brightness percentage, from 1 to 100 inclusive.")] int brightnessPercent,
-        IHueService? hueService = null,
-        CancellationToken cancellationToken = default) =>
-        ApplyAsync(resourceId, HueOperation.SetBrightness, brightnessPercent, null, null, ["light", "room", "zone"], hueService, cancellationToken);
+        IHueService? hueService = null, CancellationToken cancellationToken = default)
+    {
+        return ApplyAsync(resourceId, HueOperation.SetBrightness, brightnessPercent, null, null,
+            ["light", "room", "zone"], hueService, cancellationToken);
+    }
 
     /// <summary>Sets a supported named color on one currently discovered light or room.</summary>
-    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="resourceId">Exact ID returned by <see cref="ListHueResources" />.</param>
     /// <param name="color">An allowlisted color name accepted by the application validator.</param>
     /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
     /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
     /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
-    [McpServerTool(Name = "set_hue_color", Title = "Set Hue color"),
-     Description("Sets a discovered Hue light or room to a supported named color: red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, or cool white. This controls real devices. Use an exact ID from list_hue_resources.")]
+    [McpServerTool(Name = "set_hue_color", Title = "Set Hue color")]
+    [Description(
+        "Sets a discovered Hue light or room to a supported named color: red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, or cool white. This controls real devices. Use an exact ID from list_hue_resources.")]
     public static Task<string> SetHueColor(
         [Description("Exact ID of a discovered light or room from list_hue_resources.")] string resourceId,
-        [Description("Supported named color: red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, or cool white.")] string color,
-        IHueService? hueService = null,
-        CancellationToken cancellationToken = default) =>
-        ApplyAsync(resourceId, HueOperation.SetColor, null, color, null, ["light", "room", "zone"], hueService, cancellationToken);
+        [Description(
+            "Supported named color: red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, or cool white.")]
+        string color, IHueService? hueService = null, CancellationToken cancellationToken = default)
+    {
+        return ApplyAsync(resourceId, HueOperation.SetColor, null, color, null, ["light", "room", "zone"], hueService,
+            cancellationToken);
+    }
 
     /// <summary>Activates a discovered scene on the room or zone associated with that scene.</summary>
-    /// <param name="sceneId">Exact scene ID returned by <see cref="ListHueResources"/>.</param>
+    /// <param name="sceneId">Exact scene ID returned by <see cref="ListHueResources" />.</param>
     /// <param name="roomId">Optional room ID used to verify the scene's room association.</param>
     /// <param name="hueService">The application Hue service, supplied by dependency injection.</param>
     /// <param name="cancellationToken">Cancels the Bridge operation if the MCP client cancels the request.</param>
     /// <returns>A confirmation or a safe explanation that the action was not applied.</returns>
-    [McpServerTool(Name = "activate_hue_scene", Title = "Activate an existing Hue scene"),
-     Description("Activates one existing Hue scene on its associated room or zone. This controls real devices. Call list_hue_resources with type scene and use the exact ID. Optionally provide roomId to verify the scene is associated with that room.")]
+    [McpServerTool(Name = "activate_hue_scene", Title = "Activate an existing Hue scene")]
+    [Description(
+        "Activates one existing Hue scene on its associated room or zone. This controls real devices. Call list_hue_resources with type scene and use the exact ID. Optionally provide roomId to verify the scene is associated with that room.")]
     public static Task<string> ActivateHueScene(
         [Description("Exact ID of an existing scene from list_hue_resources.")] string sceneId,
-        [Description("Optional exact room ID from list_hue_resources. If supplied, the scene must be associated with this room.")] string? roomId = null,
-        IHueService? hueService = null,
-        CancellationToken cancellationToken = default) =>
-        ApplyAsync(sceneId, HueOperation.ActivateScene, null, null, roomId, ["scene"], hueService, cancellationToken);
+        [Description(
+            "Optional exact room ID from list_hue_resources. If supplied, the scene must be associated with this room.")]
+        string? roomId = null, IHueService? hueService = null, CancellationToken cancellationToken = default)
+    {
+        return ApplyAsync(sceneId, HueOperation.ActivateScene, null, null, roomId, ["scene"], hueService,
+            cancellationToken);
+    }
 
-    private static async Task<string> ApplyAsync(
-        string resourceId,
-        HueOperation operation,
-        int? brightnessPercent,
-        string? color,
-        string? requiredRoomId,
-        string[] allowedTypes,
-        IHueService? hueService,
+    private static async Task<string> ApplyAsync(string resourceId, HueOperation operation, int? brightnessPercent,
+        string? color, string? requiredRoomId, string[] allowedTypes, IHueService? hueService,
         CancellationToken cancellationToken)
     {
-        if (hueService is null) return "Not applied: Hue service is unavailable.";
+        if (hueService is null)
+        {
+            return "Not applied: Hue service is unavailable.";
+        }
 
         try
         {
             // Refresh before every mutation so stale IDs or resources removed from the Bridge are rejected.
             var resources = await hueService.GetResourcesAsync(cancellationToken);
-            var matches = resources.Where(resource => resource.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var matches = resources
+                .Where(resource => resource.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)).ToArray();
             if (matches.Length == 0)
+            {
                 return "Not applied: that ID is not a currently discovered Hue resource. List resources and try again.";
+            }
+
             if (matches.Length != 1)
+            {
                 return "Not applied: the resource ID was not unique.";
+            }
 
             var target = matches[0];
             if (!allowedTypes.Contains(target.Type, StringComparer.OrdinalIgnoreCase))
+            {
                 return $"Not applied: {operation} cannot be used on a {target.Type}.";
+            }
 
             if (!string.IsNullOrWhiteSpace(requiredRoomId) && !(target.Groups ?? []).Any(group =>
                     group.Id.Equals(requiredRoomId, StringComparison.OrdinalIgnoreCase)))
-                return "Not applied: that scene is not associated with the requested room or zone. List resources to see its group associations.";
+            {
+                return
+                    "Not applied: that scene is not associated with the requested room or zone. List resources to see its group associations.";
+            }
 
             // Keep MCP writes on the same validation path as chat and tool-calling proposals.
             var intent = new HueIntent(operation, target.Name, target.Type, brightnessPercent, color);
             if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))
+            {
                 return $"Not applied: {validationError}";
+            }
 
             await hueService.ExecuteAsync(action!, cancellationToken);
             return $"Applied {operation} to {target.Type} ‘{target.Name}’.";
@@ -160,7 +191,8 @@ public static class HueMcpTools
         }
         catch
         {
-            return "The Hue Bridge could not complete the action. Check Bridge connectivity and the resource's capabilities.";
+            return
+                "The Hue Bridge could not complete the action. Check Bridge connectivity and the resource's capabilities.";
         }
     }
 

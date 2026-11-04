@@ -7,16 +7,18 @@ public sealed class DemoHueService : IHueService
 {
     private readonly IReadOnlyList<HueResource> _resources =
     [
-        new("room-office", "Office", "room"),
-        new("zone-upstairs", "Upstairs", "zone"),
-        new("light-desk", "Desk lamp", "light", [new("room-office", "Office", "room")]),
-        new("light-ceiling", "Ceiling light", "light", [new("room-office", "Office", "room")]),
-        new("scene-focus", "Focus", "scene", [new("room-office", "Office", "room")]),
-        new("scene-relax", "Relax", "scene", [new("room-office", "Office", "room")])
+        new("room-office", "Office", "room"), new("zone-upstairs", "Upstairs", "zone"),
+        new("light-desk", "Desk lamp", "light", [new HueResourceGroup("room-office", "Office", "room")]),
+        new("light-ceiling", "Ceiling light", "light", [new HueResourceGroup("room-office", "Office", "room")]),
+        new("scene-focus", "Focus", "scene", [new HueResourceGroup("room-office", "Office", "room")]),
+        new("scene-relax", "Relax", "scene", [new HueResourceGroup("room-office", "Office", "room")])
     ];
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<HueResource>> GetResourcesAsync(CancellationToken cancellationToken = default) => Task.FromResult(_resources);
+    public Task<IReadOnlyList<HueResource>> GetResourcesAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_resources);
+    }
 
     /// <summary>Accepts the request without changing any physical device.</summary>
     /// <param name="action">The action that would have been applied to Hue.</param>
@@ -28,6 +30,8 @@ public sealed class DemoHueService : IHueService
     }
 
     /// <inheritdoc />
-    public Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default) =>
-        Task.FromResult($"{resource.Name} is on at 40% brightness in demo mode.");
+    public Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult($"{resource.Name} is on at 40% brightness in demo mode.");
+    }
 }
