@@ -19,7 +19,7 @@ public sealed class DynamicIntentParser : IIntentParser, IAiCallDiagnostics
     }
 
     /// <inheritdoc />
-    public async Task<HueIntent> ParseAsync(string request, IReadOnlyList<ChatTurn> history, IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history, IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
         active = state.Current == AiApproach.Tools
             ? new OpenAiToolCallingIntentParser(configuration)

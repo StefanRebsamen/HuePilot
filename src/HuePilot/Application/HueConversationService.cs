@@ -20,9 +20,9 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
             return new("Please enter a request.", NeedsClarification: true);
 
         var resources = await hueService.GetResourcesAsync(cancellationToken);
-        var intent = await parser.ParseAsync(request, history, resources, cancellationToken);
-
-        var intents = new[] { intent }.Concat(intent.AdditionalIntents ?? []).ToArray();
+        var intents = await parser.ParseAsync(request, history, resources, cancellationToken);
+        if (intents.Count == 0)
+            return new("I couldn't determine the requested action. Could you rephrase it?", NeedsClarification: true);
         var actions = new List<HueAction>();
         var messages = new List<string>();
         foreach (var proposedIntent in intents)

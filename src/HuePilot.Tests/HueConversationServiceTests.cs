@@ -1,5 +1,7 @@
 using HuePilot.Application;
 using HuePilot.Infrastructure;
+using HuePilot.Infrastructure.ToolCalling;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 
 namespace HuePilot.Tests;
@@ -76,6 +78,64 @@ public sealed class HueConversationServiceTests
 
         Assert.Equal("zone-upstairs", result.ProposedAction?.Target.Id);
         Assert.Equal(HueOperation.TurnOn, result.ProposedAction?.Operation);
+    }
+
+    [Fact]
+    public async Task ParserCanReturnMultipleIntents()
+    {
+        var desk = new HueResource("light-desk", "Desk", "light");
+        var ceiling = new HueResource("light-ceiling", "Ceiling", "light");
+        var hue = new FakeHueService([desk, ceiling]);
+        var parser = new FakeIntentParser(
+            new(HueOperation.TurnOn, "Desk", "light"),
+            new(HueOperation.TurnOn, "Ceiling", "light")
+        );
+        var service = new HueConversationService(parser, hue);
+
+        var result = await service.PlanAsync("Turn on Desk and Ceiling", []);
+
+        Assert.Equal(2, result.ProposedActions.Count);
+        Assert.Equal(["light-desk", "light-ceiling"], result.ProposedActions.Select(action => action.Target.Id));
+    }
+
+    [Fact]
+    public async Task MultipleGroupedLightsKeepTheirOwnNames()
+    {
+        var office = new HueResourceGroup("room-office", "Office", "room");
+        var desk = new HueResource("light-desk", "Desk", "light", [office]);
+        var pinboard = new HueResource("light-pinboard", "Pinboard", "light", [office]);
+        var hue = new FakeHueService([desk, pinboard]);
+        var parser = new FakeIntentParser(
+            new(HueOperation.TurnOn, "Desk", "light", TargetGroupName: "Office", TargetGroupType: "room"),
+            new(HueOperation.TurnOn, "Pinboard", "light", TargetGroupName: "Office", TargetGroupType: "room"));
+        var service = new HueConversationService(parser, hue);
+
+        var result = await service.PlanAsync("Turn on Desk and Pinboard", []);
+
+        Assert.Equal(["light-desk", "light-pinboard"], result.ProposedActions.Select(action => action.Target.Id));
+    }
+
+    [Fact]
+    public void ToolLookupResolvesRoomNameToMemberLights()
+    {
+        var office = new HueResourceGroup("room-office", "Office", "room");
+        var resources = new HueResource[]
+        {
+            new("room-office", "Office", "room"),
+            new("light-desk", "Desk lamp", "light", [office]),
+            new("light-ceiling", "Ceiling light", "light", [office])
+        };
+
+        var json = OpenAiToolCallingIntentParser.SearchResources(
+            """{"query":"Office","resourceType":"light","groupName":"","groupId":""}""", resources);
+        using var document = JsonDocument.Parse(json);
+        var matches = document.RootElement.GetProperty("resources").EnumerateArray().ToArray();
+
+        Assert.Equal(2, matches.Length);
+        Assert.Contains(matches, match => match.GetProperty("name").GetString() == "Desk lamp");
+        Assert.Contains(matches, match => match.GetProperty("name").GetString() == "Ceiling light");
+        Assert.Equal("room-office", document.RootElement.GetProperty("matchedGroups").EnumerateArray()
+            .Single().GetProperty("id").GetString());
     }
 
     [Fact]
@@ -200,10 +260,18 @@ public sealed class HueConversationServiceTests
         Assert.Contains("/setup", error.Message);
     }
 
-    private sealed class FakeIntentParser(HueIntent intent) : IIntentParser
+    private sealed class FakeIntentParser : IIntentParser
     {
-        public Task<HueIntent> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
-            IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default) => Task.FromResult(intent);
+        private readonly IReadOnlyList<HueIntent> _intents;
+
+        public FakeIntentParser(HueIntent intent) => _intents = [intent];
+
+        public FakeIntentParser(HueIntent first, HueIntent second, params HueIntent[] additional)
+            => _intents = [first, second, .. additional];
+
+        public Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
+            IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_intents);
     }
 
     private sealed class FakeHueService(IReadOnlyList<HueResource> resources) : IHueService

@@ -11,8 +11,8 @@ public interface IIntentParser
     /// <param name="history">Prior chat turns from the current session.</param>
     /// <param name="availableResources">Resources discovered by the Hue service.</param>
     /// <param name="cancellationToken">Cancels the provider request when the caller is canceled.</param>
-    /// <returns>A proposed intent or a clarification question.</returns>
-    Task<HueIntent> ParseAsync(
+    /// <returns>Proposed intents, or a single clarification intent when the request is ambiguous.</returns>
+    Task<IReadOnlyList<HueIntent>> ParseAsync(
         string request,
         IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources,

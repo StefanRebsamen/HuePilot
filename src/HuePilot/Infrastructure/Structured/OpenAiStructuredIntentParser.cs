@@ -33,7 +33,7 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
     public string LastConversationLog { get; private set; } = "";
 
     /// <inheritdoc />
-    public async Task<HueIntent> ParseAsync(
+    public async Task<IReadOnlyList<HueIntent>> ParseAsync(
         string request,
         IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources,
@@ -72,16 +72,16 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         jsonOptions.Converters.Add(new JsonStringEnumConverter());
         using var document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty("intents", out var intentsElement))
-            return JsonSerializer.Deserialize<HueIntent>(json, jsonOptions)
+        {
+            var singleIntent = JsonSerializer.Deserialize<HueIntent>(json, jsonOptions)
                 ?? throw new InvalidOperationException("The AI provider returned an invalid intent.");
+            return [singleIntent];
+        }
 
         var intents = JsonSerializer.Deserialize<List<HueIntent>>(intentsElement.GetRawText(), jsonOptions)
             ?? throw new InvalidOperationException("The AI provider returned an invalid intent list.");
         if (intents.Count == 0)
             throw new InvalidOperationException("The AI provider returned no intents.");
-        var first = intents[0];
-        return intents.Count == 1
-            ? first
-            : first with { AdditionalIntents = intents.Skip(1).ToArray() };
+        return intents;
     }
 }

@@ -20,7 +20,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         Before proposing an action, call lookup_resources for every named light, room, or scene. For compound requests such as "Desk and Pinboard on", perform the lookups and propose both actions; do not omit one target.
         Resolve natural-language names and German commands against lookup results. "ein" and "anschalten" mean TurnOn; "aus" and "abschalten" mean TurnOff.
         Use only names and opaque IDs returned by lookup_resources in the current request. Never reuse an ID from a previous request or guess an ID. Resource groups identify the room/zone a light belongs to or a scene controls.
-        For ListResources, first find the requested scope with lookup_resources (for example room "Office"), then propose ListResources with targetId set to the scope resource, targetType set to the requested category (light, room, scene, or zone), and targetGroupId set only when the lookup returned a light or scene association.
+        For ListResources, first find the requested scope with lookup_resources (for example room or zone "Office"). For lights, you may resolve the room/zone name directly in lookup_resources (resourceType "light", groupName "Office"). Prefer groupId from the returned matchedGroups when available.
         For "what lights are in Office", targetId should be the discovered Office room ID and targetType should be "light".
         Use the group filter when the user specifies a room/zone. If the target remains ambiguous (including duplicate names in one group),
         the action is unsupported, or a value is out of range, ask a concise clarification question and do not propose an action.
@@ -34,7 +34,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         "lookup_resources",
         "Search the available Hue rooms, zones, lights, and scenes. Use this to find an exact resource ID before proposing an action.",
         BinaryData.FromString("""
-            {"type":"object","properties":{"query":{"type":"string","description":"Name or partial name to search for; use an empty string to browse."},"resourceType":{"type":"string","enum":["all","room","zone","light","scene"]},"groupName":{"type":"string","description":"Optional associated room or zone name; use an empty string when not filtering by group."}},"required":["query","resourceType","groupName"],"additionalProperties":false}
+            {"type":"object","properties":{"query":{"type":"string","description":"Light, room, zone, or scene name; or an empty string to browse."},"resourceType":{"type":"string","enum":["all","room","zone","light","scene"]},"groupName":{"type":"string","description":"Optional exact room/zone name that owns the requested lights or scenes."},"groupId":{"type":"string","description":"Optional exact opaque room/zone ID returned as a matchedGroups ID."}},"required":["query","resourceType","groupName","groupId"],"additionalProperties":false}
             """), false);
 
     private static readonly ChatTool ProposeActionTool = ChatTool.CreateFunctionTool(
@@ -60,7 +60,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
     public string LastConversationLog => _conversationLog.ToString();
 
     /// <inheritdoc />
-    public async Task<HueIntent> ParseAsync(
+    public async Task<IReadOnlyList<HueIntent>> ParseAsync(
         string request,
         IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources,
@@ -103,9 +103,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                 _conversationLog.Append("Model response:").AppendLine().Append(clarification).AppendLine();
                 if (_proposedIntents.Count > 0)
                     return Combine(_proposedIntents);
-                return new(null, null, null, ClarificationQuestion: string.IsNullOrWhiteSpace(clarification)
+                return [new(null, null, null, ClarificationQuestion: string.IsNullOrWhiteSpace(clarification)
                     ? "What room or light should I use, and what change would you like?"
-                    : clarification.Trim());
+                    : clarification.Trim())];
             }
 
             messages.Add(new AssistantChatMessage(message.ToolCalls));
@@ -131,7 +131,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                         messages.Add(new ToolChatMessage(toolCall.Id, "Proposal accepted for application validation."));
                         continue;
                     }
-                    return proposal;
+                    return [proposal];
                 }
 
                 messages.Add(new ToolChatMessage(toolCall.Id, "Unsupported tool. Use only the tools provided."));
@@ -140,10 +140,11 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
 
         return _proposedIntents.Count > 0
             ? Combine(_proposedIntents)
-            : new(null, null, null, ClarificationQuestion: "I couldn't safely identify one action. Could you make the request more specific?");
+            : [new(null, null, null, ClarificationQuestion: "I couldn't safely identify one action. Could you make the request more specific?")];
     }
 
-    private string SearchResources(string json, IReadOnlyList<HueResource> resources)
+    /// <summary>Resolves a tool lookup against the discovered Hue catalog, including room and zone membership.</summary>
+    public static string SearchResources(string json, IReadOnlyList<HueResource> resources)
     {
         try
         {
@@ -151,13 +152,40 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             var query = document.RootElement.GetProperty("query").GetString()?.Trim() ?? "";
             var type = document.RootElement.GetProperty("resourceType").GetString() ?? "all";
             var groupName = document.RootElement.GetProperty("groupName").GetString()?.Trim() ?? "";
+            var groupId = document.RootElement.TryGetProperty("groupId", out var groupIdElement)
+                ? groupIdElement.GetString()?.Trim() ?? ""
+                : "";
             // Resource IDs are opaque references: only IDs from this server-side catalog are returned to the model.
             var normalizedQuery = NormalizeSearchText(query);
             var normalizedGroup = NormalizeSearchText(groupName);
+            var knownGroups = resources
+                .SelectMany(resource => resource.Groups ?? [])
+                .Concat(resources.Where(resource => resource.Type is "room" or "zone")
+                    .Select(resource => new HueResourceGroup(resource.Id, resource.Name, resource.Type)))
+                .DistinctBy(group => group.Id);
+            var matchedGroups = knownGroups.Where(group =>
+                    (!string.IsNullOrEmpty(groupId) && group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(normalizedGroup) && MatchesSearchText(group.Name, normalizedGroup)) ||
+                    (!string.IsNullOrEmpty(normalizedQuery) && MatchesSearchText(group.Name, normalizedQuery)))
+                .Take(MaxLookupResults)
+                .Select(group => new { id = group.Id, name = group.Name, type = group.Type })
+                .ToArray();
+            var resolvedGroupIds = matchedGroups.Select(group => group.id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
             var matches = resources.Where(resource =>
                     (type == "all" || resource.Type.Equals(type, StringComparison.OrdinalIgnoreCase)) &&
-                    (normalizedQuery.Length == 0 || MatchesSearchText(resource.Name, normalizedQuery)) &&
-                    (normalizedGroup.Length == 0 || (resource.Groups ?? []).Any(group => NormalizeSearchText(group.Name).Contains(normalizedGroup, StringComparison.OrdinalIgnoreCase))))
+                    (string.IsNullOrEmpty(normalizedQuery) ||
+                     MatchesSearchText(resource.Name, normalizedQuery) ||
+                     (resource.Type.Equals("light", StringComparison.OrdinalIgnoreCase) &&
+                      resolvedGroupIds.Count > 0 &&
+                      (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id))) ||
+                     (resource.Type.Equals("scene", StringComparison.OrdinalIgnoreCase) &&
+                      resolvedGroupIds.Count > 0 &&
+                      (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id)))) &&
+                    (string.IsNullOrEmpty(normalizedGroup) ||
+                     (resource.Groups ?? []).Any(group => NormalizeSearchText(group.Name).Contains(normalizedGroup, StringComparison.OrdinalIgnoreCase))) &&
+                    (string.IsNullOrEmpty(groupId) ||
+                     (resource.Groups ?? []).Any(group => group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase))))
                 .Take(MaxLookupResults)
                 .Select(resource => new
                 {
@@ -167,7 +195,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                     groups = (resource.Groups ?? []).Select(group => new { id = group.Id, name = group.Name, type = group.Type })
                 })
                 .ToArray();
-            return JsonSerializer.Serialize(new { resources = matches, truncated = matches.Length == MaxLookupResults });
+            return JsonSerializer.Serialize(new { resources = matches, matchedGroups, truncated = matches.Length == MaxLookupResults });
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
         {
@@ -208,9 +236,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             var listedType = operation == HueOperation.ListResources && !string.IsNullOrWhiteSpace(proposal.TargetType)
                 ? proposal.TargetType
                 : target.Type;
-            var queryName = operation == HueOperation.ListResources && target.Type.Equals("room", StringComparison.OrdinalIgnoreCase)
-                ? target.Name
-                : groupName ?? target.Name;
+            var queryName = target.Name;
             var intent = new HueIntent(operation, queryName, listedType, proposal.BrightnessPercent, proposal.Color, groupName, groupType);
             return HueActionValidator.TryCreate(intent, target, out _, out var error)
                 ? intent
@@ -254,9 +280,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             .Normalize(System.Text.NormalizationForm.FormC);
     }
 
-    private static HueIntent Combine(IReadOnlyList<HueIntent> intents) => intents.Count == 1
-        ? intents[0]
-        : intents[0] with { AdditionalIntents = intents.Skip(1).ToArray() };
+    private static IReadOnlyList<HueIntent> Combine(IReadOnlyList<HueIntent> intents) => intents.Count == 1
+        ? [intents[0]]
+        : intents.ToArray();
 
     private static HueIntent Clarify(string message) => new(null, null, null, ClarificationQuestion: message);
 
