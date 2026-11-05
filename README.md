@@ -8,7 +8,6 @@ HuePilot is a .NET 10 Blazor learning project for AI-assisted development and in
 src/HuePilot/               Blazor application and Hue/OpenAI integrations
 src/HuePilot.Mcp/            MCP tools for Hue resources and controls
 src/HuePilot.Tests/          Offline unit tests with fakes
-src/HuePilot.Eval/           Optional live OpenAI intent evaluation
 docs/                       Requirements, architecture decisions, and guides
 src/HuePilot.sln             All .NET projects
 ```
@@ -50,6 +49,8 @@ flowchart LR
 ```
 
 The model proposes; HuePilot resolves discovered resources and validates every action before execution. One request may contain multiple actions, which are executed sequentially after validation. The chat can switch between structured JSON output and tool calling, and optionally displays the model exchange in expandable technical details.
+
+Resource records use the application-owned `HueResourceTypes` constants for canonical values such as `room`, `zone`, `light`, and `scene`. AI-produced intent type fields remain strings at the provider boundary because they are untrusted input; HuePilot resolves and validates them against the discovered resource catalog before acting.
 
 HuePilot also reports current light and room status. The MCP server exposes the same bounded Hue service to external agents, with OpenCode approval required for mutations.
 

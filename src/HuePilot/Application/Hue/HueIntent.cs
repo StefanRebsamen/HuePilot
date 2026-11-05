@@ -6,11 +6,17 @@ namespace HuePilot.Application.Hue;
 /// </summary>
 /// <param name="Operation">The requested operation, or <see langword="null" /> when it is unclear.</param>
 /// <param name="TargetName">The discovered room, zone, light, or scene name.</param>
-/// <param name="TargetType">The resource kind: room, zone, light, or scene.</param>
+/// <param name="TargetType">
+/// The model-supplied resource kind: room, zone, light, or scene. This remains a string because it is untrusted
+/// provider input; resolved application resources use <see cref="HueResourceTypes" /> constants instead.
+/// </param>
 /// <param name="BrightnessPercent">Brightness from 1 through 100 for a brightness operation.</param>
 /// <param name="Color">A supported named color for a color operation.</param>
 /// <param name="TargetGroupName">Optional room or zone used to disambiguate an associated light or scene.</param>
-/// <param name="TargetGroupType">Optional kind of the requested group, such as room or zone.</param>
+/// <param name="TargetGroupType">
+/// Optional model-supplied kind of the requested group, such as room or zone. It is validated against discovered
+/// resources before use.
+/// </param>
 /// <param name="ClarificationQuestion">A follow-up question when the model cannot safely infer one action.</param>
 public sealed record HueIntent(
     HueOperation? Operation,
