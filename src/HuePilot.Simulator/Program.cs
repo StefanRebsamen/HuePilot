@@ -4,6 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(SimulatorState.CreateDefault());
 
 var app = builder.Build();
+app.MapHueV2Endpoints();
 app.MapGet("/", () => Results.Text("HuePilot simulator is running."));
 app.Run();
 
