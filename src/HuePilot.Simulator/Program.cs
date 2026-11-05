@@ -6,6 +6,7 @@ builder.Services.AddSingleton(SimulatorState.CreateDefault());
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();
+app.UseAntiforgery();
 app.MapHueV2Endpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();

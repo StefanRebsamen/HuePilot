@@ -45,6 +45,15 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
     }
 
     [Fact]
+    public async Task GetDashboard_ReturnsSuccessfulHtmlResponse()
+    {
+        var response = await _client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("HuePilot Bridge Simulator", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task PutLight_ValidBrightness_UpdatesTheDiscoveredResource()
     {
         var light = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data.First();
