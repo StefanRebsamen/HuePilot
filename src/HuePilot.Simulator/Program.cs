@@ -7,6 +7,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();
 app.UseAntiforgery();
+app.UseStaticFiles();
 app.MapHueV2Endpoints();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();

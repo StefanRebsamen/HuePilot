@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace HuePilot.Simulator.Tests;
@@ -51,6 +52,18 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("HuePilot Bridge Simulator", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task GetBlazorFrameworkScript_ReturnsJavaScript()
+    {
+        var dashboard = await _client.GetStringAsync("/");
+        var match = Regex.Match(dashboard, "<script src=\"(?<path>[^\"]*blazor\\.web[^\"]*)\"");
+        var response = await _client.GetAsync(match.Groups["path"].Value);
+
+        Assert.True(match.Success);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("javascript", response.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
