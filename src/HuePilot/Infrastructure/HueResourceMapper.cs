@@ -28,7 +28,7 @@ public static class HueResourceMapper
     /// Application resources carrying display names, stable IDs, and associations.
     /// </returns>
     public static IReadOnlyList<AppHueResource> Map(IEnumerable<ApiLight> lights, IEnumerable<ApiRoom> rooms,
-        IEnumerable<ApiZone> zones, IEnumerable<ApiScene> scenes, IEnumerable<ApiDevice> devices)
+        IEnumerable<ApiZone> zones, IReadOnlyCollection<ApiScene> scenes, IEnumerable<ApiDevice> devices)
     {
         var roomList = rooms.ToArray();
         var zoneList = zones.ToArray();
