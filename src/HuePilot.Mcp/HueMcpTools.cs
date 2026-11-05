@@ -74,7 +74,7 @@ public static class HueMcpTools
         CancellationToken cancellationToken = default)
     {
         return ApplyAsync(resourceId, on ? HueOperation.TurnOn : HueOperation.TurnOff, null, null, null,
-            ["light", "room", "zone"], hueService, cancellationToken);
+            [HueResourceTypes.Light, HueResourceTypes.Room, HueResourceTypes.Zone], hueService, cancellationToken);
     }
 
     /// <summary>Sets brightness on one currently discovered light or room.</summary>
@@ -92,7 +92,7 @@ public static class HueMcpTools
         IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
         return ApplyAsync(resourceId, HueOperation.SetBrightness, brightnessPercent, null, null,
-            ["light", "room", "zone"], hueService, cancellationToken);
+            [HueResourceTypes.Light, HueResourceTypes.Room, HueResourceTypes.Zone], hueService, cancellationToken);
     }
 
     /// <summary>Sets a supported named color on one currently discovered light or room.</summary>
@@ -110,7 +110,8 @@ public static class HueMcpTools
             "Supported named color: red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, or cool white.")]
         string color, IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
-        return ApplyAsync(resourceId, HueOperation.SetColor, null, color, null, ["light", "room", "zone"], hueService,
+        return ApplyAsync(resourceId, HueOperation.SetColor, null, color, null,
+            [HueResourceTypes.Light, HueResourceTypes.Room, HueResourceTypes.Zone], hueService,
             cancellationToken);
     }
 
@@ -129,7 +130,7 @@ public static class HueMcpTools
             "Optional exact room ID from list_hue_resources. If supplied, the scene must be associated with this room.")]
         string? roomId = null, IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
-        return ApplyAsync(sceneId, HueOperation.ActivateScene, null, null, roomId, ["scene"], hueService,
+        return ApplyAsync(sceneId, HueOperation.ActivateScene, null, null, roomId, [HueResourceTypes.Scene], hueService,
             cancellationToken);
     }
 

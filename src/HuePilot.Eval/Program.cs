@@ -30,15 +30,18 @@ if (approach is not ("structured" or "tools"))
 
 var resources = new List<HueResource>
 {
-    new("room-bedroom", "Bedroom", "room"),
-    new("room-kitchen", "Kitchen", "room"),
-    new("room-living", "Living room", "room"),
-    new("room-office", "Office", "room"),
-    new("light-desk", "Desk", "light"),
-    new("light-buddha", "Buddha", "light"),
-    new("scene-relax-1", "Relax", "scene", [new HueResourceGroup("room-bedroom", "Bedroom", "room")]),
-    new("scene-relax-2", "Relax", "scene", [new HueResourceGroup("room-kitchen", "Kitchen", "room")]),
-    new("scene-relax-3", "Relax", "scene", [new HueResourceGroup("room-living", "Living room", "room")])
+    new("room-bedroom", "Bedroom", HueResourceTypes.Room),
+    new("room-kitchen", "Kitchen", HueResourceTypes.Room),
+    new("room-living", "Living room", HueResourceTypes.Room),
+    new("room-office", "Office", HueResourceTypes.Room),
+    new("light-desk", "Desk", HueResourceTypes.Light),
+    new("light-buddha", "Buddha", HueResourceTypes.Light),
+    new("scene-relax-1", "Relax", HueResourceTypes.Scene,
+        [new HueResourceGroup("room-bedroom", "Bedroom", HueResourceTypes.Room)]),
+    new("scene-relax-2", "Relax", HueResourceTypes.Scene,
+        [new HueResourceGroup("room-kitchen", "Kitchen", HueResourceTypes.Room)]),
+    new("scene-relax-3", "Relax", HueResourceTypes.Scene,
+        [new HueResourceGroup("room-living", "Living room", HueResourceTypes.Room)])
 };
 
 var hue = new FakeHueService(resources);

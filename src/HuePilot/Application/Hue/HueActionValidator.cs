@@ -51,7 +51,8 @@ public static class HueActionValidator
             return true;
         }
 
-        if (target.Type is not ("room" or "zone" or "light" or "scene"))
+        if (target.Type is not (HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light or
+            HueResourceTypes.Scene))
         {
             error = "That Hue resource type isn't supported.";
             return false;
@@ -59,7 +60,7 @@ public static class HueActionValidator
 
         if (intent.Operation == HueOperation.GetStatus)
         {
-            if (target.Type is not ("room" or "zone" or "light"))
+            if (target.Type is not (HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light))
             {
                 error = "Hue status can only be reported for lights, rooms, and zones.";
                 return false;
@@ -71,14 +72,14 @@ public static class HueActionValidator
         }
 
         if (intent.Operation == HueOperation.ActivateScene &&
-            !target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
+            !target.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase))
         {
             error = "Only an existing scene can be activated as a scene.";
             return false;
         }
 
         if (intent.Operation != HueOperation.ActivateScene &&
-            target.Type.Equals("scene", StringComparison.OrdinalIgnoreCase))
+            target.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase))
         {
             error = "That operation can't be applied to a scene.";
             return false;

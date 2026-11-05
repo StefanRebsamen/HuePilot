@@ -1,5 +1,6 @@
 using ApiGroupedLight = HueApi.Models.GroupedLight;
 using ApiRoom = HueApi.Models.Room;
+using HuePilot.Application.Hue;
 
 namespace HuePilot.Infrastructure.Hue;
 
@@ -31,6 +32,6 @@ public static class HueRoomControlResolver
     {
         // Some Bridge firmware omits room.grouped_services, but each grouped_light still names
         // its owning room. Require exactly one owner match rather than guessing.
-        return FindGroupedLightId(room.Id, "room", groupedLights);
+        return FindGroupedLightId(room.Id, HueResourceTypes.Room, groupedLights);
     }
 }

@@ -180,7 +180,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             var normalizedQuery = NormalizeSearchText(query);
             var normalizedGroup = NormalizeSearchText(groupName);
             var knownGroups = resources.SelectMany(resource => resource.Groups ?? [])
-                .Concat(resources.Where(resource => resource.Type is "room" or "zone").Select(resource =>
+                .Concat(resources.Where(resource => resource.Type is HueResourceTypes.Room or HueResourceTypes.Zone).Select(resource =>
                     new HueResourceGroup(resource.Id, resource.Name, resource.Type))).DistinctBy(group => group.Id);
             var matchedGroups = knownGroups.Where(group =>
                     (!string.IsNullOrEmpty(groupId) && group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)) ||
@@ -193,9 +193,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             var matches = resources.Where(resource =>
                     (type == "all" || resource.Type.Equals(type, StringComparison.OrdinalIgnoreCase)) &&
                     (string.IsNullOrEmpty(normalizedQuery) || MatchesSearchText(resource.Name, normalizedQuery) ||
-                     (resource.Type.Equals("light", StringComparison.OrdinalIgnoreCase) && resolvedGroupIds.Count > 0 &&
+                     (resource.Type.Equals(HueResourceTypes.Light, StringComparison.OrdinalIgnoreCase) && resolvedGroupIds.Count > 0 &&
                       (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id))) ||
-                     (resource.Type.Equals("scene", StringComparison.OrdinalIgnoreCase) && resolvedGroupIds.Count > 0 &&
+                     (resource.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase) && resolvedGroupIds.Count > 0 &&
                       (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id)))) &&
                     (string.IsNullOrEmpty(normalizedGroup) || (resource.Groups ?? []).Any(group =>
                         NormalizeSearchText(group.Name)
