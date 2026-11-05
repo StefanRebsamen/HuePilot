@@ -1,0 +1,93 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject SimulatorState State
+
+<PageTitle>HuePilot Bridge Simulator</PageTitle>
+
+<section class="hero">
+    <p class="eyebrow">LOCAL HUE V2 SIMULATOR</p>
+    <h1>Presentation lights</h1>
+    <p>Use this page or point HuePilot at this app’s HTTPS address. Both update the same in-memory bridge state.</p>
+</section>
+
+@foreach (var room in Snapshot.Rooms.Concat(Snapshot.Zones))
+{
+    <section class="room">
+        <h2>@room.Name</h2>
+        <div class="lights">
+            @foreach (var light in Snapshot.Lights.Where(light => room.LightIds.Contains(light.Id)))
+            {
+                <article class="light @(light.IsOn ? "on" : "off")">
+                    <h3>@light.Name</h3>
+                    <p>@(light.IsOn ? "On" : "Off") · @Math.Round(light.Brightness)%</p>
+                    <div class="actions">
+                        <button @onclick="() => SetPower(light.Id, !light.IsOn)">Turn @(light.IsOn ? "off" : "on")</button>
+                        <input aria-label="@light.Name brightness" type="range" min="1" max="100" value="@light.Brightness"
+                               @onchange="args => SetBrightness(light.Id, args.Value)" />
+                    </div>
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<section class="room">
+    <h2>Scenes</h2>
+    <div class="actions">
+        @foreach (var scene in Snapshot.Scenes)
+        {
+            <button @onclick="() => ActivateScene(scene.Id)">@scene.Name</button>
+        }
+    </div>
+</section>
+
+@code {
+    private SimulatorSnapshot Snapshot { get; set; } = default!;
+    private readonly CancellationTokenSource _dispose = new();
+
+    protected override void OnInitialized()
+    {
+        Snapshot = State.GetSnapshot();
+        _ = RefreshAsync();
+    }
+
+    private void SetPower(Guid id, bool on)
+    {
+        State.UpdateLight(id, new LightUpdateRequest(on, null, null));
+        Snapshot = State.GetSnapshot();
+    }
+
+    private void SetBrightness(Guid id, object? value)
+    {
+        if (double.TryParse(value?.ToString(), out var brightness))
+        {
+            State.UpdateLight(id, new LightUpdateRequest(null, brightness, null));
+            Snapshot = State.GetSnapshot();
+        }
+    }
+
+    private void ActivateScene(Guid id)
+    {
+        State.ActivateScene(id);
+        Snapshot = State.GetSnapshot();
+    }
+
+    private async Task RefreshAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_dispose.Token))
+            {
+                Snapshot = State.GetSnapshot();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public void Dispose() => _dispose.Cancel();
+}

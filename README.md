@@ -70,6 +70,16 @@ Without Bridge secrets, the app uses clearly labeled demo resources. Browse room
 
 In the chat, use the **AI approach** selector to switch between structured output and tool calling. The choice is persisted in the browser and restored on reload. The initial approach when no choice has been saved is configured by `AI:Approach`; optional conversation logging can be enabled with `AI:LogConversation=true` and appears in expandable technical details.
 
+## Presentation simulator
+
+When a physical Bridge is unavailable, start the local Hue v2 simulator in a second terminal:
+
+```sh
+dotnet run --project src/HuePilot.Simulator/HuePilot.Simulator.csproj
+```
+
+Open the HTTPS URL printed by ASP.NET Core to see the simulated rooms, zone, lights, and scene. To run HuePilot against it, set `Bridge:IpAddress` to the simulator host and HTTPS port (for example, `localhost:7242`) and set `Bridge:ApplicationKey` to any non-empty local value through user secrets. The simulator is in-memory and resets whenever it restarts.
+
 ## MCP server for OpenCode
 
 On macOS, start the loopback-only HTTP MCP server from Terminal so the .NET process has Hue LAN access:

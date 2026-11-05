@@ -44,5 +44,36 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task PutLight_ValidBrightness_UpdatesTheDiscoveredResource()
+    {
+        var light = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data.First();
+        var id = light.GetProperty("id").GetString();
+
+        var update = await _client.PutAsJsonAsync($"/clip/v2/resource/light/{id}",
+            new { dimming = new { brightness = 42 } });
+        var updated = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data
+            .Single(resource => resource.GetProperty("id").GetString() == id);
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(42, updated.GetProperty("dimming").GetProperty("brightness").GetDouble());
+    }
+
+    [Fact]
+    public async Task PutLight_InvalidBrightness_RejectsWithoutMutation()
+    {
+        var light = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data.First();
+        var id = light.GetProperty("id").GetString();
+        var original = light.GetProperty("dimming").GetProperty("brightness").GetDouble();
+
+        var update = await _client.PutAsJsonAsync($"/clip/v2/resource/light/{id}",
+            new { dimming = new { brightness = 101 } });
+        var current = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data
+            .Single(resource => resource.GetProperty("id").GetString() == id);
+
+        Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);
+        Assert.Equal(original, current.GetProperty("dimming").GetProperty("brightness").GetDouble());
+    }
+
     public sealed record HueEnvelope(System.Text.Json.JsonElement[] Data);
 }

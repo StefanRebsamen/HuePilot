@@ -1,0 +1,5 @@
+.simulator-shell { max-width: 72rem; margin: auto; padding: 2rem; font-family: system-ui, sans-serif; background: #101318; color: #f3f4f6; min-height: 100vh; }
+.hero { margin-bottom: 2rem; } .eyebrow { color: #ffd166; letter-spacing: .12em; font-size: .75rem; font-weight: 700; }
+.room { background: #1d2430; border-radius: 1rem; padding: 1.25rem; margin: 1rem 0; } .lights { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
+.light { border: 1px solid #465569; border-radius: .75rem; padding: 1rem; } .light.on { background: #4a3e1c; border-color: #ffd166; } .actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+button { background: #ffd166; border: 0; border-radius: .5rem; padding: .55rem .8rem; color: #1a1a1a; font-weight: 700; cursor: pointer; } input { accent-color: #ffd166; }

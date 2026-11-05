@@ -22,6 +22,40 @@ public static class HueV2Endpoints
                 ? Results.NotFound(new { errors = new[] { new { description = "Unsupported simulated resource type." } } })
                 : Results.Ok(new { data });
         });
+
+        app.MapPut("/clip/v2/resource/light/{id:guid}", (Guid id, HueUpdate update, SimulatorState state) =>
+            ApplyLightUpdate(id, update, state));
+        app.MapPut("/clip/v2/resource/grouped_light/{id:guid}", (Guid id, HueUpdate update, SimulatorState state) =>
+            ApplyGroupedLightUpdate(id, update, state));
+        app.MapPut("/clip/v2/resource/scene/{id:guid}", (Guid id, HueUpdate update, SimulatorState state) =>
+            update.Recall?.Action == "active" && state.ActivateScene(id)
+                ? Results.Ok(new { data = new[] { new { rid = id, rtype = "scene" } } })
+                : Results.BadRequest(new { errors = new[] { new { description = "Unsupported simulated scene update." } } }));
+    }
+
+    private static IResult ApplyLightUpdate(Guid id, HueUpdate update, SimulatorState state)
+    {
+        var request = ToLightUpdate(update);
+        return request is not null && state.UpdateLight(id, request)
+            ? Results.Ok(new { data = new[] { new { rid = id, rtype = "light" } } })
+            : Results.BadRequest(new { errors = new[] { new { description = "Invalid simulated light update." } } });
+    }
+
+    private static IResult ApplyGroupedLightUpdate(Guid id, HueUpdate update, SimulatorState state)
+    {
+        var request = ToLightUpdate(update);
+        return request is not null && state.UpdateGroupedLight(id,
+            new GroupedLightUpdateRequest(request.On, request.Brightness, request.Color))
+            ? Results.Ok(new { data = new[] { new { rid = id, rtype = "grouped_light" } } })
+            : Results.BadRequest(new { errors = new[] { new { description = "Invalid simulated grouped-light update." } } });
+    }
+
+    private static LightUpdateRequest? ToLightUpdate(HueUpdate update)
+    {
+        var color = update.Color?.Xy is { } xy ? new HueColor(xy.X, xy.Y) : null;
+        return update.On is null && update.Dimming is null && update.Color is null
+            ? null
+            : new LightUpdateRequest(update.On?.On, update.Dimming?.Brightness, color);
     }
 
     private static object ToLight(SimulatedLight light) => new
@@ -62,4 +96,11 @@ public static class HueV2Endpoints
             group = new { rid = owner.Group?.Id ?? Guid.Empty, rtype = owner.Type ?? "room" }
         };
     }
+
+    public sealed record HueUpdate(HueOn? On, HueDimming? Dimming, HueColorUpdate? Color, HueRecall? Recall);
+    public sealed record HueOn(bool On);
+    public sealed record HueDimming(double Brightness);
+    public sealed record HueColorUpdate(HueXy? Xy);
+    public sealed record HueXy(double X, double Y);
+    public sealed record HueRecall(string? Action);
 }
