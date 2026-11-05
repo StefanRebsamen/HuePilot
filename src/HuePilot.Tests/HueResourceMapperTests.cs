@@ -1,5 +1,5 @@
 using HueApi.Models;
-using HuePilot.Infrastructure;
+using HuePilot.Infrastructure.Hue;
 using ApiLight = HueApi.Models.Light;
 using ApiRoom = HueApi.Models.Room;
 using ApiScene = HueApi.Models.Scene;

@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Hue;
 
 /// <summary>
 /// A model-produced interpretation of a user's request. It is untrusted until a discovered resource is resolved

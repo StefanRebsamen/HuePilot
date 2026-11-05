@@ -2,9 +2,10 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using HuePilot.Application;
+using HuePilot.Application.Hue;
 using OpenAI.Chat;
 
-namespace HuePilot.Infrastructure.ToolCalling;
+namespace HuePilot.Infrastructure.IntentParsing;
 
 /// <summary>
 /// An agentic planning variant. Its tools only search the supplied catalog and propose an action; HuePilot

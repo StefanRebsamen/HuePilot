@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Hue;
 
 /// <summary>Deterministic checks that constrain a model-proposed intent to supported Hue actions.</summary>
 public static class HueActionValidator

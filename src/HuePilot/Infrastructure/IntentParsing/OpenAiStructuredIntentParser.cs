@@ -1,9 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HuePilot.Application;
+using HuePilot.Application.Hue;
 using OpenAI.Chat;
 
-namespace HuePilot.Infrastructure.Structured;
+namespace HuePilot.Infrastructure.IntentParsing;
 
 /// <summary>Uses OpenAI structured JSON output to translate a request into one Hue intent.</summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>

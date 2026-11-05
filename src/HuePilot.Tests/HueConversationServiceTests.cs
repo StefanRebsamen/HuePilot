@@ -1,7 +1,8 @@
 using System.Text.Json;
 using HuePilot.Application;
-using HuePilot.Infrastructure;
-using HuePilot.Infrastructure.ToolCalling;
+using HuePilot.Application.Hue;
+using HuePilot.Infrastructure.Hue;
+using HuePilot.Infrastructure.IntentParsing;
 using Microsoft.Extensions.Configuration;
 
 namespace HuePilot.Tests;

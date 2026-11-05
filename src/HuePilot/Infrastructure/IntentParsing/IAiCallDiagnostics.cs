@@ -1,4 +1,4 @@
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.IntentParsing;
 
 /// <summary>Exposes per-request model/tool call counts for the optional AI evaluation runner.</summary>
 public interface IAiCallDiagnostics

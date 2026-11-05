@@ -1,4 +1,4 @@
-using HuePilot.Application;
+using HuePilot.Application.Hue;
 
 /// <summary>The expected action fields or clarification requirement for an evaluation case.</summary>
 internal sealed record EvalExpectation(

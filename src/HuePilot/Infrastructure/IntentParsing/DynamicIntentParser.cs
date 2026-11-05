@@ -1,8 +1,7 @@
 using HuePilot.Application;
-using HuePilot.Infrastructure.Structured;
-using HuePilot.Infrastructure.ToolCalling;
+using HuePilot.Application.Hue;
 
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.IntentParsing;
 
 /// <summary>Selects an intent parser for each request based on circuit state.</summary>
 public sealed class DynamicIntentParser : IIntentParser, IAiCallDiagnostics

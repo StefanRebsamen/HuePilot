@@ -2,9 +2,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HuePilot.Application;
-using HuePilot.Infrastructure;
-using HuePilot.Infrastructure.Structured;
-using HuePilot.Infrastructure.ToolCalling;
+using HuePilot.Application.Hue;
+using HuePilot.Infrastructure.IntentParsing;
 using Microsoft.Extensions.Configuration;
 
 var configuration = new ConfigurationBuilder().AddUserSecrets(typeof(OpenAiStructuredIntentParser).Assembly, true)

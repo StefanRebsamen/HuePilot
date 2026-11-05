@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Hue;
 
 /// <summary>Application boundary for reading Hue resources and executing validated actions.</summary>
 public interface IHueService

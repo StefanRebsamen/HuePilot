@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Hue;
 
 /// <summary>A Hue room or zone associated with a light or scene.</summary>
 /// <param name="Id">The Bridge resource ID.</param>

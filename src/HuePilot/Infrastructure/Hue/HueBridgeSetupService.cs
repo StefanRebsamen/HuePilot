@@ -2,7 +2,7 @@ using System.Net;
 using HueApi;
 using HueApi.BridgeLocator;
 
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.Hue;
 
 /// <summary>Discovers Hue Bridges and performs the physical-button pairing handshake.</summary>
 public sealed class HueBridgeSetupService

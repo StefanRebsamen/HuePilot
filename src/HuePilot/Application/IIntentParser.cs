@@ -1,3 +1,5 @@
+using HuePilot.Application.Hue;
+
 namespace HuePilot.Application;
 
 /// <summary>Converts natural-language requests into structured Hue intents.</summary>

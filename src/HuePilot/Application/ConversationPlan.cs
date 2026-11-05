@@ -1,3 +1,5 @@
+using HuePilot.Application.Hue;
+
 namespace HuePilot.Application;
 
 /// <summary>The assistant's proposed action or clarification, before any Hue mutation is executed.</summary>

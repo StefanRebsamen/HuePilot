@@ -1,5 +1,5 @@
-using HuePilot.Application;
-using HuePilot.Infrastructure;
+using HuePilot.Application.Hue;
+using HuePilot.Infrastructure.Hue;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,4 +1,4 @@
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.Hue;
 
 /// <summary>Bridge address and stable Bridge identifier returned by discovery.</summary>
 /// <param name="IpAddress">The local network address used by the Hue API.</param>

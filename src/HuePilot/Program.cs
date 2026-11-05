@@ -1,28 +1,12 @@
-using HuePilot.Application;
 using HuePilot.Components;
 using HuePilot.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// add services to the container.
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-builder.Services.AddScoped<AiApproachState>();
-builder.Services.AddScoped<DynamicIntentParser>();
-builder.Services.AddScoped<IIntentParser>(sp => sp.GetRequiredService<DynamicIntentParser>());
-builder.Services.AddScoped<IAiCallDiagnostics>(sp => sp.GetRequiredService<DynamicIntentParser>());
-if (!string.IsNullOrWhiteSpace(builder.Configuration["Bridge:IpAddress"]) &&
-    !string.IsNullOrWhiteSpace(builder.Configuration["Bridge:ApplicationKey"]))
-{
-    builder.Services.AddScoped<IHueService, HueApiHueService>();
-}
-else
-{
-    builder.Services.AddScoped<IHueService, DemoHueService>();
-}
-
-builder.Services.AddScoped<HueBridgeSetupService>();
-builder.Services.AddScoped<HueConversationService>();
+builder.Services.AddHuePilotServices(builder.Configuration);
 
 var app = builder.Build();
 

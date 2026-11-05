@@ -1,4 +1,4 @@
-using HuePilot.Application;
+using HuePilot.Application.Hue;
 
 /// <summary>A test double that exposes a fixed resource catalog and records any attempted mutation.</summary>
 internal sealed class FakeHueService(IReadOnlyList<HueResource> resources) : IHueService

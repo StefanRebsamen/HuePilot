@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Hue;
 
 /// <summary>A validated operation and its resolved Hue target.</summary>
 /// <param name="Operation">The operation to execute.</param>

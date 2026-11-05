@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Hue;
 
 /// <summary>
 /// Coordinates intent parsing, resource resolution, action validation, and the separate execution step. Planning

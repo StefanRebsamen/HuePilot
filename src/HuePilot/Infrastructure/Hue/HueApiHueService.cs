@@ -2,10 +2,10 @@ using System.Globalization;
 using HueApi;
 using HueApi.Models;
 using HueApi.Models.Requests;
-using HuePilot.Application;
-using AppHueResource = HuePilot.Application.HueResource;
+using HuePilot.Application.Hue;
+using AppHueResource = HuePilot.Application.Hue.HueResource;
 
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Infrastructure.Hue;
 
 /// <summary>Production Hue service adapter backed by the local Hue Bridge v2 API.</summary>
 /// <param name="configuration">Configuration containing Bridge address and application key secrets.</param>

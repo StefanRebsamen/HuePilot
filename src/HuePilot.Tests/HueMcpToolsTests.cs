@@ -1,5 +1,5 @@
 using System.Net.Sockets;
-using HuePilot.Application;
+using HuePilot.Application.Hue;
 using HuePilot.Mcp;
 
 namespace HuePilot.Tests;
