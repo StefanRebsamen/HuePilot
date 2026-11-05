@@ -8,7 +8,7 @@ namespace HuePilot.Tests;
 public sealed class HueRoomControlResolverTests
 {
     [Fact]
-    public void FindsGroupedLightByItsRoomOwnerWhenRoomHasNoGroupedServices()
+    public void FindGroupedLightId_RoomHasNoGroupedServices_ReturnsGroupedLightOwnedByRoom()
     {
         var roomId = Guid.NewGuid();
         var groupedLightId = Guid.NewGuid();
@@ -29,7 +29,7 @@ public sealed class HueRoomControlResolverTests
     }
 
     [Fact]
-    public void DoesNotGuessWhenGroupedLightOwnershipIsMissingOrAmbiguous()
+    public void FindGroupedLightId_GroupedLightOwnershipIsMissingOrAmbiguous_ReturnsNull()
     {
         var roomId = Guid.NewGuid();
         var room = new ApiRoom { Id = roomId, GroupedServices = [] };
@@ -50,7 +50,7 @@ public sealed class HueRoomControlResolverTests
     }
 
     [Fact]
-    public void FindsGroupedLightByZoneOwner()
+    public void FindGroupedLightId_GroupedLightIsOwnedByZone_ReturnsGroupedLightId()
     {
         var zoneId = Guid.NewGuid();
         var groupedLightId = Guid.NewGuid();

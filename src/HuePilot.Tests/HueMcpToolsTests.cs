@@ -15,7 +15,7 @@ public sealed class HueMcpToolsTests
         [new HueResourceGroup("room-office", "Office", "room")]);
 
     [Fact]
-    public async Task ListResourcesReturnsNamesTypesAndIds()
+    public async Task ListHueResources_ResourcesAreDiscovered_ReturnsTheirNamesTypesAndIds()
     {
         var hue = new FakeHueService([Desk, Office, Relax]);
 
@@ -29,7 +29,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task BrightnessToolExecutesValidDiscoveredLightAction()
+    public async Task SetHueBrightness_DiscoveredLightAndValidBrightness_ExecutesBrightnessAction()
     {
         var hue = new FakeHueService([Desk]);
 
@@ -42,7 +42,7 @@ public sealed class HueMcpToolsTests
     [Theory]
     [InlineData(0)]
     [InlineData(101)]
-    public async Task InvalidBrightnessNeverExecutes(int brightness)
+    public async Task SetHueBrightness_BrightnessIsOutsideAllowedRange_DoesNotExecuteAction(int brightness)
     {
         var hue = new FakeHueService([Desk]);
 
@@ -53,7 +53,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task UnknownResourceIdNeverExecutes()
+    public async Task SetHuePower_ResourceIdIsUnknown_DoesNotExecuteAction()
     {
         var hue = new FakeHueService([Desk]);
 
@@ -64,7 +64,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task PowerToolCanTargetZone()
+    public async Task SetHuePower_TargetIsZone_ExecutesPowerAction()
     {
         var zone = new HueResource("zone-upstairs", "Upstairs", "zone");
         var hue = new FakeHueService([zone]);
@@ -76,7 +76,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task PowerToolCannotTargetScene()
+    public async Task SetHuePower_TargetIsScene_DoesNotExecuteAction()
     {
         var hue = new FakeHueService([Relax]);
 
@@ -87,7 +87,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task SceneToolCanOnlyActivateKnownScene()
+    public async Task ActivateHueScene_TargetIsKnownScene_ExecutesSceneActivation()
     {
         var hue = new FakeHueService([Relax]);
 
@@ -98,7 +98,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task SceneToolValidatesRequestedRoomAssociation()
+    public async Task ActivateHueScene_RoomDoesNotMatchSceneAssociation_DoesNotExecuteAction()
     {
         var hue = new FakeHueService([Relax, new HueResource("room-kitchen", "Kitchen", "room")]);
 
@@ -111,7 +111,7 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
-    public async Task ResourceLookupExplainsBridgeNetworkFailure()
+    public async Task ListHueResources_BridgeNetworkFails_ReturnsConnectionFailureExplanation()
     {
         var hue = new FakeHueService([],
             new HttpRequestException("network unavailable", new SocketException((int)SocketError.HostUnreachable)));

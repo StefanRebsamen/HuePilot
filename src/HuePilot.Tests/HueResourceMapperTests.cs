@@ -10,7 +10,7 @@ namespace HuePilot.Tests;
 public sealed class HueResourceMapperTests
 {
     [Fact]
-    public void MapsDeviceMembershipAndSceneGroupToNamedRoom()
+    public void Map_ResourcesHaveDeviceMembershipAndSceneGroup_MapsGroupsToNamedRooms()
     {
         var bedroomId = Guid.NewGuid();
         var zoneId = Guid.NewGuid();
