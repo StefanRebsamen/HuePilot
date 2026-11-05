@@ -78,7 +78,7 @@ When a physical Bridge is unavailable, start the local Hue v2 simulator in a sec
 dotnet run --project src/HuePilot.Simulator/HuePilot.Simulator.csproj
 ```
 
-Open the HTTPS URL printed by ASP.NET Core to see the simulated rooms, zone, lights, and scene. To run HuePilot against it, set `Bridge:IpAddress` to the simulator host and HTTPS port (for example, `localhost:7242`) and set `Bridge:ApplicationKey` to any non-empty local value through user secrets. The simulator is in-memory and resets whenever it restarts.
+Open `https://localhost:5005` to see the simulated rooms, zone, lights, and scene. To run HuePilot against it, set `Bridge:IpAddress` to `localhost:5005` and set `Bridge:ApplicationKey` to any non-empty local value through user secrets. The simulator is in-memory and resets whenever it restarts.
 
 ## MCP server for OpenCode
 
