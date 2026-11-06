@@ -1,5 +1,83 @@
-.simulator-shell { max-width: 72rem; margin: auto; padding: 2rem; font-family: system-ui, sans-serif; background: #101318; color: #f3f4f6; min-height: 100vh; }
-.hero { margin-bottom: 2rem; } .eyebrow { color: #ffd166; letter-spacing: .12em; font-size: .75rem; font-weight: 700; }
-.room { background: #1d2430; border-radius: 1rem; padding: 1.25rem; margin: 1rem 0; } .lights { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
-.light { border: 1px solid #465569; border-radius: .75rem; padding: 1rem; } .light.on { background: #4a3e1c; border-color: #ffd166; } .actions { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-button { background: #ffd166; border: 0; border-radius: .5rem; padding: .55rem .8rem; color: #1a1a1a; font-weight: 700; cursor: pointer; } input { accent-color: #ffd166; }
+.room {
+    background: #151d31;
+    border: 1px solid #26334d;
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    margin: 1rem 0;
+}
+
+.group-heading {
+    display: flex;
+    align-items: baseline;
+    gap: .65rem;
+}
+
+.group-type {
+    color: #94a3b8;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.lights {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 1rem;
+}
+
+.light {
+    border: 4px solid #334155;
+    border-radius: 1rem;
+    padding: 1rem;
+    background: #111827;
+}
+
+.light.on {
+    border-color: color-mix(in srgb, var(--light-color) var(--light-brightness), #334155);
+    box-shadow: 0 0 1.5rem color-mix(in srgb, var(--light-color) var(--light-brightness), transparent);
+}
+
+.light-status {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    color: #cbd5e1;
+}
+
+.actions, .palette {
+    display: flex;
+    gap: .65rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: .8rem;
+}
+
+button {
+    background: #e2e8f0;
+    border: 0;
+    border-radius: .55rem;
+    padding: .5rem .75rem;
+    color: #111827;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+input {
+    accent-color: #f8fafc;
+}
+
+.swatch {
+    width: 1.45rem;
+    height: 1.45rem;
+    min-width: 1.45rem;
+    padding: 0;
+    border-radius: 999px;
+    background: var(--swatch);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+
+.swatch.selected {
+    outline-color: #f8fafc;
+}

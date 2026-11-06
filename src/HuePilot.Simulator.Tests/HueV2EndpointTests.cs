@@ -55,6 +55,24 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
     }
 
     [Fact]
+    public async Task GetDashboard_ExposesEachLightBrightnessForItsFrame()
+    {
+        var dashboard = await _client.GetStringAsync("/");
+
+        Assert.Contains("--light-brightness: 70%", dashboard);
+        Assert.DoesNotContain("color-dot", dashboard);
+    }
+
+    [Fact]
+    public async Task GetDashboard_LabelsRoomAndZoneGroups()
+    {
+        var dashboard = await _client.GetStringAsync("/");
+
+        Assert.Matches("class=\"group-type\"[^>]*>Room", dashboard);
+        Assert.Matches("class=\"group-type\"[^>]*>Zone", dashboard);
+    }
+
+    [Fact]
     public async Task GetBlazorFrameworkScript_ReturnsJavaScript()
     {
         var dashboard = await _client.GetStringAsync("/");

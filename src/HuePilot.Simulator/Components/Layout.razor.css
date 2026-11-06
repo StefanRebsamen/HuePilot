@@ -1,0 +1,9 @@
+.simulator-shell {
+    max-width: 72rem;
+    min-height: 100vh;
+    margin: auto;
+    padding: 2rem;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #edf2f7;
+    background: #0b1020;
+}

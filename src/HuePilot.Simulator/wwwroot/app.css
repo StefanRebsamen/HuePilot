@@ -1,1 +1,5 @@
-/* Establishes the simulator's static-asset root so Blazor framework assets are mapped at runtime. */
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+}

@@ -3,28 +3,35 @@
 @implements IDisposable
 @inject SimulatorState State
 
-<PageTitle>HuePilot Bridge Simulator</PageTitle>
-
-<section class="hero">
-    <p class="eyebrow">LOCAL HUE V2 SIMULATOR</p>
-    <h1>Presentation lights</h1>
-    <p>Use this page or point HuePilot at this app’s HTTPS address. Both update the same in-memory bridge state.</p>
-</section>
-
-@foreach (var room in Snapshot.Rooms.Concat(Snapshot.Zones))
+@foreach (var group in Snapshot.Rooms.Select(room => (Group: room, Type: "Room"))
+             .Concat(Snapshot.Zones.Select(zone => (Group: zone, Type: "Zone"))))
 {
     <section class="room">
-        <h2>@room.Name</h2>
+        <header class="group-heading">
+            <span class="group-type">@group.Type</span>
+            <h2>@group.Group.Name</h2>
+        </header>
         <div class="lights">
-            @foreach (var light in Snapshot.Lights.Where(light => room.LightIds.Contains(light.Id)))
+            @foreach (var light in Snapshot.Lights.Where(light => group.Group.LightIds.Contains(light.Id)))
             {
-                <article class="light @(light.IsOn ? "on" : "off")">
+                <article class="light @(light.IsOn ? "on" : "off")"
+                         style="--light-color: @ToCssColor(light.Color); --light-brightness: @ToCssPercentage(light.Brightness)">
                     <h3>@light.Name</h3>
-                    <p>@(light.IsOn ? "On" : "Off") · @Math.Round(light.Brightness)%</p>
+                    <p class="light-status">
+                        @ColorName(light.Color) · @Math.Round(light.Brightness)%
+                    </p>
                     <div class="actions">
                         <button @onclick="() => SetPower(light.Id, !light.IsOn)">Turn @(light.IsOn ? "off" : "on")</button>
                         <input aria-label="@light.Name brightness" type="range" min="1" max="100" value="@light.Brightness"
                                @onchange="args => SetBrightness(light.Id, args.Value)" />
+                    </div>
+                    <div class="palette" aria-label="@light.Name color">
+                        @foreach (var color in Palette)
+                        {
+                            <button class="swatch @(Matches(light.Color, color.Value) ? "selected" : "")"
+                                    style="--swatch: @color.Css" title="@color.Name" aria-label="Set @light.Name to @color.Name"
+                                    @onclick="() => SetColor(light.Id, color.Value)"></button>
+                        }
                     </div>
                 </article>
             }
@@ -45,6 +52,12 @@
 @code {
     private SimulatorSnapshot Snapshot { get; set; } = default!;
     private readonly CancellationTokenSource _dispose = new();
+    private static readonly ColorOption[] Palette =
+    [
+        new("Warm white", new HueColor(.45, .41), "#ffd6a1"), new("Blue", new HueColor(.17, .05), "#3b82f6"),
+        new("Green", new HueColor(.17, .70), "#22c55e"), new("Pink", new HueColor(.50, .20), "#ec4899"),
+        new("Orange", new HueColor(.58, .41), "#f97316")
+    ];
 
     protected override void OnInitialized()
     {
@@ -66,6 +79,21 @@
             Snapshot = State.GetSnapshot();
         }
     }
+
+    private void SetColor(Guid id, HueColor color)
+    {
+        State.UpdateLight(id, new LightUpdateRequest(null, null, color));
+        Snapshot = State.GetSnapshot();
+    }
+
+    private static bool Matches(HueColor? current, HueColor candidate) =>
+        current is not null && Math.Abs(current.X - candidate.X) < .001 && Math.Abs(current.Y - candidate.Y) < .001;
+
+    private static string ColorName(HueColor? color) => Palette.FirstOrDefault(option => Matches(color, option.Value))?.Name ?? "Custom";
+
+    private static string ToCssColor(HueColor? color) => Palette.FirstOrDefault(option => Matches(color, option.Value))?.Css ?? "#94a3b8";
+
+    private static string ToCssPercentage(double brightness) => $"{brightness:0.##}%";
 
     private void ActivateScene(Guid id)
     {
@@ -90,4 +118,6 @@
     }
 
     public void Dispose() => _dispose.Cancel();
+
+    private sealed record ColorOption(string Name, HueColor Value, string Css);
 }
