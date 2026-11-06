@@ -1,4 +1,3 @@
-using System.Globalization;
 using HueApi;
 using HueApi.Models;
 using HueApi.Models.Requests;
@@ -178,7 +177,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
             HueOperation.TurnOff => update.TurnOff(),
             HueOperation.SetBrightness when action.BrightnessPercent is >= 1 and <= 100 => update.SetBrightness(
                 action.BrightnessPercent.Value),
-            HueOperation.SetColor when TryGetColor(action.Color, out var rgb) => update.SetColor(rgb),
+            HueOperation.SetColor when TryGetColor(action.Color, out var xy) => update.SetColor(xy.X, xy.Y),
             _ => throw new InvalidOperationException("The requested light change is invalid.")
         };
     }
@@ -192,28 +191,28 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
             HueOperation.TurnOff => update.TurnOff(),
             HueOperation.SetBrightness when action.BrightnessPercent is >= 1 and <= 100 => update.SetBrightness(
                 action.BrightnessPercent.Value),
-            HueOperation.SetColor when TryGetColor(action.Color, out var rgb) => update.SetColor(rgb),
+            HueOperation.SetColor when TryGetColor(action.Color, out var xy) => update.SetColor(xy.X, xy.Y),
             _ => throw new InvalidOperationException("The requested room change is invalid.")
         };
     }
 
-    private static bool TryGetColor(string? color, out int rgb)
+    private static bool TryGetColor(string? color, out (double X, double Y) xy)
     {
-        var hex = color?.Trim().ToLowerInvariant() switch
+        xy = color?.Trim().ToLowerInvariant() switch
         {
-            "red" => "FF0000",
-            "orange" => "FF8000",
-            "yellow" => "FFFF00",
-            "green" => "00FF00",
-            "cyan" => "00FFFF",
-            "blue" => "0000FF",
-            "purple" => "8000FF",
-            "pink" => "FF69B4",
-            "white" => "FFFFFF",
-            "warm white" => "FFD6A1",
-            "cool white" => "D6E8FF",
-            _ => null
+            "red" => (.675, .322),
+            "orange" => (.550, .410),
+            "yellow" => (.443, .515),
+            "green" => (.214, .709),
+            "cyan" => (.170, .340),
+            "blue" => (.150, .060),
+            "purple" => (.382, .160),
+            "pink" => (.458, .181),
+            "white" => (.323, .329),
+            "warm white" => (.458, .410),
+            "cool white" => (.313, .323),
+            _ => default
         };
-        return int.TryParse(hex, NumberStyles.HexNumber, null, out rgb);
+        return xy != default;
     }
 }
