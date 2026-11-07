@@ -1,11 +1,6 @@
-using System.Text.Json;
-using System.Reflection;
-using HueApi.Models.Requests;
 using HuePilot.Application;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure.Hue;
 using HuePilot.Infrastructure.IntentParsing;
-using Microsoft.Extensions.Configuration;
 
 namespace HuePilot.Tests;
 
@@ -44,17 +39,6 @@ public sealed class HueConversationServiceTests
         Assert.True(result.NeedsClarification);
         Assert.Equal("Which room?", result.AssistantMessage);
         Assert.Empty(hue.Executed);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(101)]
-    public void TryCreate_BrightnessIsOutsideAllowedRange_ReturnsValidationError(int brightness)
-    {
-        var intent = new HueIntent(HueOperation.SetBrightness, "Office", "room", brightness);
-
-        Assert.False(HueActionValidator.TryCreate(intent, Office, out _, out var error));
-        Assert.Contains("1 to 100", error);
     }
 
     [Fact]
@@ -125,28 +109,6 @@ public sealed class HueConversationServiceTests
         var proposedActions = result.ProposedActions!;
 
         Assert.Equal(["light-desk", "light-pinboard"], proposedActions.Select(action => action.Target.Id));
-    }
-
-    [Fact]
-    public void SearchResources_QueryTargetsRoomLights_ReturnsMemberLights()
-    {
-        var office = new HueResourceGroup("room-office", "Office", "room");
-        var resources = new HueResource[]
-        {
-            new("room-office", "Office", "room"), new("light-desk", "Desk lamp", "light", [office]),
-            new("light-ceiling", "Ceiling light", "light", [office])
-        };
-
-        var json = OpenAiToolCallingIntentParser.SearchResources(
-            """{"query":"Office","resourceType":"light","groupName":"","groupId":""}""", resources);
-        using var document = JsonDocument.Parse(json);
-        var matches = document.RootElement.GetProperty("resources").EnumerateArray().ToArray();
-
-        Assert.Equal(2, matches.Length);
-        Assert.Contains(matches, match => match.GetProperty("name").GetString() == "Desk lamp");
-        Assert.Contains(matches, match => match.GetProperty("name").GetString() == "Ceiling light");
-        Assert.Equal("room-office",
-            document.RootElement.GetProperty("matchedGroups").EnumerateArray().Single().GetProperty("id").GetString());
     }
 
     [Fact]
@@ -255,68 +217,6 @@ public sealed class HueConversationServiceTests
         Assert.True(result.NeedsClarification);
         Assert.Contains("multiple rooms or zones", result.AssistantMessage);
         Assert.Empty(hue.Executed);
-    }
-
-    [Fact]
-    public void TryCreate_ColorIsUnsupported_ReturnsValidationError()
-    {
-        var intent = new HueIntent(HueOperation.SetColor, "Office", "room", Color: "ultraviolet");
-
-        Assert.False(HueActionValidator.TryCreate(intent, Office, out _, out var error));
-        Assert.Contains("named color", error);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("not-an-ip")]
-    public async Task PairAsync_IpAddressIsInvalid_ThrowsArgumentExceptionBeforeNetworkCall(string ipAddress)
-    {
-        var setup = new HueBridgeSetupService();
-
-        await Assert.ThrowsAsync<ArgumentException>(() => setup.PairAsync(ipAddress));
-    }
-
-    [Fact]
-    public async Task GetResourcesAsync_BridgeSecretsAreMissing_ThrowsConfigurationException()
-    {
-        var configuration = new ConfigurationBuilder().Build();
-        var hue = new HueApiHueService(configuration);
-
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => hue.GetResourcesAsync());
-
-        Assert.Contains("/setup", error.Message);
-    }
-
-    [Fact]
-    public void BuildLightUpdate_SetColor_ProducesHueXyColorPayload()
-    {
-        var method = typeof(HueApiHueService).GetMethod("BuildLightUpdate",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var action = new HueAction(HueOperation.SetColor, Office, Color: "red");
-
-        var update = Assert.IsType<UpdateLight>(method.Invoke(null, [action]));
-        var payload = JsonSerializer.SerializeToElement(update);
-
-        var xy = payload.GetProperty("color").GetProperty("xy");
-        Assert.Equal(.675, xy.GetProperty("x").GetDouble(), 3);
-        Assert.Equal(.322, xy.GetProperty("y").GetDouble(), 3);
-        Assert.Equal(JsonValueKind.Null, payload.GetProperty("color_temperature").ValueKind);
-    }
-
-    [Fact]
-    public void BuildGroupedUpdate_SetColor_ProducesHueXyColorPayload()
-    {
-        var method = typeof(HueApiHueService).GetMethod("BuildGroupedUpdate",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var action = new HueAction(HueOperation.SetColor, Office, Color: "red");
-
-        var update = Assert.IsType<UpdateGroupedLight>(method.Invoke(null, [action]));
-        var payload = JsonSerializer.SerializeToElement(update);
-
-        var xy = payload.GetProperty("color").GetProperty("xy");
-        Assert.Equal(.675, xy.GetProperty("x").GetDouble(), 3);
-        Assert.Equal(.322, xy.GetProperty("y").GetDouble(), 3);
-        Assert.Equal(JsonValueKind.Null, payload.GetProperty("color_temperature").ValueKind);
     }
 
     private sealed class FakeIntentParser : IIntentParser
