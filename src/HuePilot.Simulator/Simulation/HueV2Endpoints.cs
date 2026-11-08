@@ -23,10 +23,8 @@ public static class HueV2Endpoints
                 : Results.Ok(new { data });
         });
 
-        app.MapPut("/clip/v2/resource/light/{id:guid}", (Guid id, HueUpdate update, SimulatorState state) =>
-            ApplyLightUpdate(id, update, state));
-        app.MapPut("/clip/v2/resource/grouped_light/{id:guid}", (Guid id, HueUpdate update, SimulatorState state) =>
-            ApplyGroupedLightUpdate(id, update, state));
+        app.MapPut("/clip/v2/resource/light/{id:guid}", ApplyLightUpdate);
+        app.MapPut("/clip/v2/resource/grouped_light/{id:guid}", ApplyGroupedLightUpdate);
         app.MapPut("/clip/v2/resource/scene/{id:guid}", (Guid id, HueUpdate update, SimulatorState state) =>
             update.Recall?.Action == "active" && state.ActivateScene(id)
                 ? Results.Ok(new { data = new[] { new { rid = id, rtype = "scene" } } })

@@ -150,7 +150,11 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
             }
 
             var status = await hueService.GetStatusAsync(target, cancellationToken);
-            return new ConversationPlan(status);
+            var brightness = status.BrightnessPercent is null ? string.Empty : $" at {status.BrightnessPercent}% brightness";
+            var color = status.ColorX is null || status.ColorY is null
+                ? string.Empty
+                : $" with xy ({status.ColorX:F4}, {status.ColorY:F4})";
+            return new ConversationPlan($"{status.ResourceName} is {(status.IsOn ? "on" : "off")}{brightness}{color}.");
         }
 
         if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))

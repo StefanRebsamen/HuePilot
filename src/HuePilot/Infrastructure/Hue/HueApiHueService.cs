@@ -31,7 +31,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     }
 
     /// <inheritdoc />
-    public async Task<string> GetStatusAsync(AppHueResource resource, CancellationToken cancellationToken = default)
+    public async Task<HueStatus> GetStatusAsync(AppHueResource resource, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(resource.Id, out var resourceId))
         {
@@ -43,10 +43,9 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         {
             var light = (await api.Light.GetAllAsync()).Data.Single(x => x.Id == resourceId);
             var brightness = light.Dimming?.Brightness;
-            return light.On?.IsOn == true
-                ? $"{resource.Name} is on" +
-                  (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
-                : $"{resource.Name} is off.";
+            var xy = light.Color?.Xy;
+            return new HueStatus(resource.Id, resource.Name, resource.Type, light.On?.IsOn == true,
+                brightness is null ? null : (int)Math.Round(brightness.Value), xy?.X, xy?.Y);
         }
 
         if (resource.Type.Equals(HueResourceTypes.Room, StringComparison.OrdinalIgnoreCase) ||
@@ -61,10 +60,8 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
 
             var groupedLight = (await api.GroupedLight.GetAllAsync()).Data.Single(x => x.Id == groupedLightId.Value);
             var brightness = groupedLight.Dimming?.Brightness;
-            return groupedLight.On?.IsOn == true
-                ? $"{resource.Name} is on" +
-                  (brightness is null ? "." : $" at {Math.Round(brightness.Value)}% brightness.")
-                : $"{resource.Name} is off.";
+            return new HueStatus(resource.Id, resource.Name, resource.Type, groupedLight.On?.IsOn == true,
+                brightness is null ? null : (int)Math.Round(brightness.Value));
         }
 
         throw new InvalidOperationException("Hue status can only be reported for lights, rooms, and zones.");

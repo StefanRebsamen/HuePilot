@@ -14,7 +14,7 @@ public interface IHueService
     Task ExecuteAsync(HueAction action, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the current status of a discovered light, room, or zone.</summary>
-    Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default)
+    Task<HueStatus> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException("Status reporting is not supported by this Hue service.");
     }

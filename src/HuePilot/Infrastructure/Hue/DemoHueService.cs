@@ -34,8 +34,8 @@ public sealed class DemoHueService : IHueService
     }
 
     /// <inheritdoc />
-    public Task<string> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default)
+    public Task<HueStatus> GetStatusAsync(HueResource resource, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult($"{resource.Name} is on at 40% brightness in demo mode.");
+        return Task.FromResult(new HueStatus(resource.Id, resource.Name, resource.Type, true, 40, 0.3127, 0.3290));
     }
 }

@@ -33,7 +33,7 @@ public static class HueMcpTools
             throw new InvalidOperationException("Hue service is unavailable.");
         }
 
-        if (type is not ("all" or "room" or "zone" or "light" or "scene"))
+        if (type is not ("all" or HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light or HueResourceTypes.Scene))
         {
             return "Not applied: type must be all, room, zone, light, or scene.";
         }
@@ -52,6 +52,41 @@ public static class HueMcpTools
                     groups = (resource.Groups ?? []).Select(group => new { group.Id, group.Name, group.Type })
                 });
             return JsonSerializer.Serialize(selected, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (HttpRequestException ex)
+        {
+            return BridgeUnavailable(ex);
+        }
+    }
+
+    /// <summary>Gets the current power, brightness, and available xy color state for one Hue resource.</summary>
+    [McpServerTool(Name = "get_hue_status", Title = "Get current Hue light status")]
+    [Description("Read-only. Gets the current on/off state, brightness, and xy color coordinates for a discovered light, room, or zone.")]
+    public static async Task<string> GetHueStatus(
+        [Description("Exact ID of a discovered light, room, or zone from list_hue_resources.")] string resourceId,
+        IHueService? hueService = null, CancellationToken cancellationToken = default)
+    {
+        if (hueService is null)
+        {
+            return "Hue service is unavailable.";
+        }
+
+        try
+        {
+            var target = (await hueService.GetResourcesAsync(cancellationToken)).SingleOrDefault(resource =>
+                resource.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase));
+            if (target is null)
+            {
+                return "That ID is not a currently discovered Hue resource. List resources and try again.";
+            }
+
+            if (target.Type is not (HueResourceTypes.Light or HueResourceTypes.Room or HueResourceTypes.Zone))
+            {
+                return $"Hue status cannot be reported for a {target.Type}.";
+            }
+
+            return JsonSerializer.Serialize(await hueService.GetStatusAsync(target, cancellationToken),
+                new JsonSerializerOptions { WriteIndented = true });
         }
         catch (HttpRequestException ex)
         {
