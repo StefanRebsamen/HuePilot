@@ -28,7 +28,7 @@ flowchart LR
     end
 
     subgraph AgentHost["Agent host"]
-        Agent["OpenCode agent"] <--> MCP["HuePilot MCP<br/>loopback HTTP or stdio"]
+        Agent["OpenCode agent"] <--> MCP["HuePilot MCP<br/>loopback HTTP"]
         MCP --> MCPTools["List, validate, and control tools"]
         MCPTools --> MCPHuePort["IHueService"]
     end
@@ -85,7 +85,7 @@ Open `https://localhost:5891` to see the simulated rooms, zone, lights, and scen
 On macOS, start the loopback-only HTTP MCP server from Terminal so the .NET process has Hue LAN access:
 
 ```sh
-dotnet run --project src/HuePilot.Mcp/HuePilot.Mcp.csproj -- --http
+dotnet run --project src/HuePilot.Mcp/HuePilot.Mcp.csproj
 ```
 
 Leave it running while using OpenCode. Project-local configuration is in `.opencode/opencode.json`; write tools require approval. See [`docs/mcp-server.md`](docs/mcp-server.md).
