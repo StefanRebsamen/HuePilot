@@ -1,13 +1,22 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging;
 
 namespace HuePilot.Simulator.Tests;
 
-public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HueV2EndpointTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly HttpClient _client = factory.CreateClient();
+    private readonly WebApplicationFactory<Program> _factory;
+    private readonly HttpClient _client;
+
+    public HueV2EndpointTests(WebApplicationFactory<Program> factory)
+    {
+        _factory = factory;
+        _client = factory.CreateClient();
+    }
 
     [Fact]
     public async Task GetRooms_ReturnsHueDataEnvelopeWithGroupedLightService()
@@ -43,6 +52,21 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
         var response = await _client.GetAsync("/clip/v2/resource/temperature");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetResourceType_LogsTheApiCall()
+    {
+        var logProvider = new CapturingLoggerProvider();
+        using var factory = _factory.WithWebHostBuilder(builder => builder.ConfigureLogging(logging =>
+            logging.AddProvider(logProvider)));
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/clip/v2/resource/light");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(logProvider.Entries, entry => entry.Level == LogLevel.Information &&
+            entry.Message.Contains("Hue simulator API call: GET /clip/v2/resource/light"));
     }
 
     [Fact]
@@ -135,4 +159,27 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
     }
 
     public sealed record HueEnvelope(System.Text.Json.JsonElement[] Data);
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public List<LogEntry> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(Entries);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class CapturingLogger(List<LogEntry> entries) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => entries.Add(new LogEntry(logLevel, formatter(state, exception)));
+    }
+
+    private sealed record LogEntry(LogLevel Level, string Message);
 }
