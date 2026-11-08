@@ -1,52 +1,22 @@
 using HuePilot.Application.Hue;
 using HuePilot.Infrastructure.Hue;
+using HuePilot.Mcp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.AspNetCore;
 
-const string HttpModeArgument = "--http";
+var builder = WebApplication.CreateBuilder(args);
+AddHuePilotServices(builder.Configuration, builder.Services);
 
-var httpMode = args.Contains(HttpModeArgument, StringComparer.OrdinalIgnoreCase);
-var hostArgs = args.Where(argument => !argument.Equals(HttpModeArgument, StringComparison.OrdinalIgnoreCase)).ToArray();
+builder.Services.AddMcpServer().WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
+    .WithToolsFromAssembly();
 
-return httpMode ? await RunHttpModeAsync(hostArgs) : await RunStdioModeAsync(hostArgs);
+var app = builder.Build();
+app.UseMcpLogging(app.Environment);
+app.MapMcp("/mcp");
 
-static async Task<int> RunHttpModeAsync(string[] args)
-{
-    var builder = WebApplication.CreateBuilder(args);
-    AddHuePilotServices(builder.Configuration, builder.Services);
-
-    builder.Services.AddMcpServer().WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-        .WithToolsFromAssembly();
-
-    var app = builder.Build();
-    app.MapMcp("/mcp");
-
-    // Bind only to loopback: OpenCode connects locally, while the server reaches Hue from its host process.
-    app.Urls.Clear();
-    app.Urls.Add("http://127.0.0.1:5179");
-
-    await app.RunAsync();
-    return 0;
-}
-
-static async Task<int> RunStdioModeAsync(string[] args)
-{
-    var builder = Host.CreateApplicationBuilder(args);
-
-    // MCP stdio reserves stdout for JSON-RPC; send all host logs to stderr.
-    builder.Logging.ClearProviders();
-    builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
-
-    AddHuePilotServices(builder.Configuration, builder.Services);
-    builder.Services.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly();
-
-    await builder.Build().RunAsync();
-    return 0;
-}
+await app.RunAsync();
 
 static void AddHuePilotServices(IConfigurationManager configuration, IServiceCollection services)
 {
