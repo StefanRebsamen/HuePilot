@@ -54,9 +54,17 @@
     private readonly CancellationTokenSource _dispose = new();
     private static readonly ColorOption[] Palette =
     [
-        new("Warm white", new HueColor(.45, .41), "#ffd6a1"), new("Blue", new HueColor(.17, .05), "#3b82f6"),
-        new("Green", new HueColor(.17, .70), "#22c55e"), new("Pink", new HueColor(.50, .20), "#ec4899"),
-        new("Orange", new HueColor(.58, .41), "#f97316")
+        new("Red", new HueColor(.675, .322), "#ef4444"),
+        new("Orange", new HueColor(.550, .410), "#f97316"),
+        new("Yellow", new HueColor(.443, .515), "#eab308"),
+        new("Green", new HueColor(.214, .709), "#22c55e"),
+        new("Cyan", new HueColor(.170, .340), "#06b6d4"),
+        new("Blue", new HueColor(.150, .060), "#3b82f6"),
+        new("Purple", new HueColor(.382, .160), "#8b5cf6"),
+        new("Pink", new HueColor(.458, .181), "#ec4899"),
+        new("White", new HueColor(.323, .329), "#f8fafc"),
+        new("Warm white", new HueColor(.458, .410), "#ffd6a1"),
+        new("Cool white", new HueColor(.313, .323), "#d6e8ff")
     ];
 
     protected override void OnInitialized()

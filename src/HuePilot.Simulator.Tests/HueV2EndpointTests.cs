@@ -115,5 +115,24 @@ public sealed class HueV2EndpointTests(WebApplicationFactory<Program> factory) :
         Assert.Equal(original, current.GetProperty("dimming").GetProperty("brightness").GetDouble());
     }
 
+    [Fact]
+    public async Task PutLight_RealBridgeRedXy_IsRecognizedByTheDashboard()
+    {
+        var light = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data.First();
+        var id = light.GetProperty("id").GetString();
+        var name = light.GetProperty("metadata").GetProperty("name").GetString();
+
+        var update = await _client.PutAsJsonAsync($"/clip/v2/resource/light/{id}",
+            new { color = new { xy = new { x = .675, y = .322 } }, color_temperature = (object?)null });
+        var updated = (await _client.GetFromJsonAsync<HueEnvelope>("/clip/v2/resource/light"))!.Data
+            .Single(resource => resource.GetProperty("id").GetString() == id);
+        var dashboard = await _client.GetStringAsync("/");
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        Assert.Equal(.675, updated.GetProperty("color").GetProperty("xy").GetProperty("x").GetDouble(), 3);
+        Assert.Equal(.322, updated.GetProperty("color").GetProperty("xy").GetProperty("y").GetDouble(), 3);
+        Assert.Contains($"aria-label=\"Set {name} to Red\"", dashboard);
+    }
+
     public sealed record HueEnvelope(System.Text.Json.JsonElement[] Data);
 }
