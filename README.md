@@ -54,6 +54,11 @@ Resource records use the application-owned `HueResourceTypes` constants for cano
 
 HuePilot also reports current light and room status. The MCP server exposes the same bounded Hue service to external agents, with OpenCode approval required for mutations.
 
+## Packages
+
+- [HueApi](https://www.nuget.org/packages/HueApi/) provides the Philips Hue Bridge API v2 client used by the `HueApiHueService` adapter. Hue access remains behind the application-owned `IHueService` abstraction so it can be replaced or faked in tests.
+- [OpenAI](https://www.nuget.org/packages/OpenAI/) provides the OpenAI client used for structured intent extraction and bounded tool-calling plans. Model output is treated as untrusted and validated against Hue resources before any action is executed.
+
 ## Run the app
 
 ```sh
