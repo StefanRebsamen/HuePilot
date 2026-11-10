@@ -5,10 +5,27 @@ namespace HuePilot.Simulator.Tests;
 public sealed class SimulatorStateTests
 {
     [Fact]
+    public void CreateDefault_ExpandedCatalogHasGardenAndOverlappingZones()
+    {
+        var snapshot = SimulatorState.CreateDefault().GetSnapshot();
+
+        Assert.Equal(6, snapshot.Rooms.Count);
+        Assert.Equal(11, snapshot.Lights.Count);
+        Assert.Equal(3, snapshot.Zones.Count);
+
+        var garden = Assert.Single(snapshot.Rooms, room => room.Name == "Garden");
+        Assert.Equal(5, garden.LightIds.Count);
+
+        var lightIds = snapshot.Lights.Select(light => light.Id).ToHashSet();
+        Assert.All(snapshot.Rooms.Concat(snapshot.Zones), group =>
+            Assert.All(group.LightIds, lightId => Assert.Contains(lightId, lightIds)));
+    }
+
+    [Fact]
     public void UpdateGroupedLight_ValidBrightness_UpdatesEveryOwnedLightAndDerivedGroupState()
     {
         var state = SimulatorState.CreateDefault();
-        var zone = state.GetSnapshot().Zones.Single();
+        var zone = Assert.Single(state.GetSnapshot().Zones, zone => zone.Name == "Downstairs");
 
         state.UpdateGroupedLight(zone.GroupedLightId,
             new GroupedLightUpdateRequest(On: true, Brightness: 65, Color: null));
@@ -46,7 +63,7 @@ public sealed class SimulatorStateTests
     public void GetSnapshot_ZoneGroupedLight_IdentifiesZoneOwner()
     {
         var snapshot = SimulatorState.CreateDefault().GetSnapshot();
-        var zone = snapshot.Zones.Single();
+        var zone = Assert.Single(snapshot.Zones, zone => zone.Name == "Downstairs");
 
         var groupedLight = snapshot.GroupedLights.Single(group => group.Id == zone.GroupedLightId);
 
