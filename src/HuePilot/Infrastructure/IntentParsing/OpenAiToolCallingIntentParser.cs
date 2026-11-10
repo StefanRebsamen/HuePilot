@@ -8,12 +8,13 @@ using OpenAI.Chat;
 namespace HuePilot.Infrastructure.IntentParsing;
 
 /// <summary>
-/// An agentic planning variant. Its tools only search the supplied catalog and propose an action; HuePilot
-/// validates and displays that proposal before any Hue mutation is executed.
+/// Implements a bounded, tool-driven planning loop. Its tools can search only the supplied Hue catalog and propose
+/// actions; they cannot call a Bridge. HuePilot validates and displays every proposal before any Hue mutation occurs.
 /// </summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
 public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
 {
+    // Hard limits keep an untrusted model response from consuming unbounded provider calls or catalog output.
     private const int MaxModelTurns = 8;
     private const int MaxLookupResults = 25;
 
@@ -44,6 +45,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                               {"type":"object","properties":{"operation":{"type":"string","enum":["GetStatus","ListResources","TurnOn","TurnOff","SetBrightness","SetColor","ActivateScene"]},"targetId":{"type":"string","description":"Exact opaque ID returned by lookup_resources."},"targetName":{"type":"string","description":"Exact resource name returned by lookup_resources."},"targetType":{"type":["string","null"],"enum":["room","zone","light","scene",null]},"targetGroupId":{"type":["string","null"],"description":"Associated room/zone ID when the user's request specifies one; otherwise null."},"brightnessPercent":{"type":["integer","null"]},"color":{"type":["string","null"]}},"required":["operation","targetId","targetName","targetType","targetGroupId","brightnessPercent","color"],"additionalProperties":false}
                               """), false);
 
+    // Diagnostics are reset for every ParseAsync call and are never used as conversation memory.
     private readonly StringBuilder _conversationLog = new();
 
     private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
@@ -58,16 +60,28 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
     /// <inheritdoc />
     public string LastConversationLog => _conversationLog.ToString();
 
-    /// <inheritdoc />
+    /// <summary>Converts a request into proposed Hue intents through bounded tool calls.</summary>
     public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
+    {
+        ResetState(request);
+        return await RunPlanningLoopAsync(CreateClient(), CreateMessages(request, history), CreateOptions(),
+            availableResources, cancellationToken);
+    }
+
+    /// <summary>Resets planning state for a new request.</summary>
+    private void ResetState(string request)
     {
         LastModelCallCount = 0;
         LastToolCallCount = 0;
         _conversationLog.Clear();
         _proposedIntents.Clear();
         _conversationLog.Append("User request:").AppendLine().Append(request).AppendLine().AppendLine();
+    }
 
+    /// <summary>Creates the configured OpenAI chat client.</summary>
+    private ChatClient CreateClient()
+    {
         var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -75,28 +89,44 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                 "OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
         }
 
-        var client = new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
+        return new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
             apiKey);
+    }
+
+    /// <summary>Builds the model messages from the request and recent conversation.</summary>
+    private static List<ChatMessage> CreateMessages(string request, IReadOnlyList<ChatTurn> history)
+    {
         var messages = new List<ChatMessage> { new SystemChatMessage(SystemPrompt) };
         foreach (var turn in history.TakeLast(12))
         {
-            if (turn.Role == "user")
+            switch (turn.Role)
             {
-                messages.Add(new UserChatMessage(turn.Content));
-            }
-            else if (turn.Role == "assistant")
-            {
-                messages.Add(new AssistantChatMessage(turn.Content));
+                case "user":
+                    messages.Add(new UserChatMessage(turn.Content));
+                    break;
+                case "assistant":
+                    messages.Add(new AssistantChatMessage(turn.Content));
+                    break;
             }
         }
 
         messages.Add(new UserChatMessage(request));
+        return messages;
+    }
 
+    /// <summary>Creates options that expose the bounded catalog and proposal tools.</summary>
+    private static ChatCompletionOptions CreateOptions()
+    {
         var options = new ChatCompletionOptions { AllowParallelToolCalls = true };
         options.Tools.Add(LookupResourcesTool);
         options.Tools.Add(ProposeActionTool);
+        return options;
+    }
 
-        // Bound the agent loop: a model can search and propose, but cannot keep calling tools indefinitely.
+    /// <summary>Runs the bounded model and tool-call planning loop.</summary>
+    private async Task<IReadOnlyList<HueIntent>> RunPlanningLoopAsync(ChatClient client, List<ChatMessage> messages,
+        ChatCompletionOptions options, IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken)
+    {
         for (var turn = 0; turn < MaxModelTurns; turn++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -106,66 +136,84 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
 
             if (message.ToolCalls.Count == 0)
             {
-                var clarification = message.Content.FirstOrDefault()?.Text;
-                _conversationLog.Append("Model response:").AppendLine().Append(clarification).AppendLine();
-                if (_proposedIntents.Count > 0)
-                {
-                    return Combine(_proposedIntents);
-                }
-
-                return
-                [
-                    new HueIntent(null, null, null,
-                        ClarificationQuestion: string.IsNullOrWhiteSpace(clarification)
-                            ? "What room or light should I use, and what change would you like?"
-                            : clarification.Trim())
-                ];
+                return HandleTextResponse(message.Content.FirstOrDefault()?.Text);
             }
 
-            messages.Add(new AssistantChatMessage(message.ToolCalls));
-            foreach (var toolCall in message.ToolCalls)
+            var terminalResponse = ProcessToolCalls(message.ToolCalls, messages, availableResources);
+            if (terminalResponse is not null)
             {
-                LastToolCallCount++;
-                var arguments = toolCall.FunctionArguments.ToString();
-                _conversationLog.Append("Tool call: ").Append(toolCall.FunctionName).AppendLine().Append(arguments)
-                    .AppendLine().AppendLine();
-                if (toolCall.FunctionName == "lookup_resources")
-                {
-                    var result = SearchResources(arguments, availableResources);
-                    _conversationLog.Append("Tool result:").AppendLine().Append(result).AppendLine().AppendLine();
-                    messages.Add(new ToolChatMessage(toolCall.Id, result));
-                    continue;
-                }
-
-                if (toolCall.FunctionName == "propose_hue_action")
-                {
-                    var proposal = ParseProposal(arguments, availableResources);
-                    if (!proposal.NeedsClarification && proposal.Operation is not null)
-                    {
-                        _proposedIntents.Add(proposal);
-                        messages.Add(new ToolChatMessage(toolCall.Id, "Proposal accepted for application validation."));
-                        continue;
-                    }
-
-                    return [proposal];
-                }
-
-                messages.Add(new ToolChatMessage(toolCall.Id, "Unsupported tool. Use only the tools provided."));
+                return terminalResponse;
             }
         }
 
-        return _proposedIntents.Count > 0
-            ? Combine(_proposedIntents)
-            :
-            [
-                new HueIntent(null, null, null,
-                    ClarificationQuestion:
-                    "I couldn't safely identify one action. Could you make the request more specific?")
-            ];
+        return _proposedIntents.Count > 0 ? _proposedIntents : [Clarify(
+            "I couldn't safely identify one action. Could you make the request more specific?")];
     }
 
-    /// <summary>Resolves a tool lookup against the discovered Hue catalog, including room and zone membership.</summary>
-    public static string SearchResources(string json, IReadOnlyList<HueResource> resources)
+    /// <summary>Converts a text-only model response into proposals or a clarification.</summary>
+    private IReadOnlyList<HueIntent> HandleTextResponse(string? clarification)
+    {
+        _conversationLog.Append("Model response:").AppendLine().Append(clarification).AppendLine();
+        return _proposedIntents.Count > 0
+            ? _proposedIntents
+            : [Clarify(string.IsNullOrWhiteSpace(clarification)
+                ? "What room or light should I use, and what change would you like?"
+                : clarification.Trim())];
+    }
+
+    /// <summary>Processes each tool call in a model response.</summary>
+    private IReadOnlyList<HueIntent>? ProcessToolCalls(IReadOnlyList<ChatToolCall> toolCalls,
+        List<ChatMessage> messages, IReadOnlyList<HueResource> availableResources)
+    {
+        messages.Add(new AssistantChatMessage(toolCalls));
+        foreach (var toolCall in toolCalls)
+        {
+            var terminalResponse = ProcessToolCall(toolCall, messages, availableResources);
+            if (terminalResponse is not null)
+            {
+                return terminalResponse;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Processes one catalog lookup or action proposal tool call.</summary>
+    private IReadOnlyList<HueIntent>? ProcessToolCall(ChatToolCall toolCall, List<ChatMessage> messages,
+        IReadOnlyList<HueResource> availableResources)
+    {
+        LastToolCallCount++;
+        var arguments = toolCall.FunctionArguments.ToString();
+        _conversationLog.Append("Tool call: ").Append(toolCall.FunctionName).AppendLine().Append(arguments)
+            .AppendLine().AppendLine();
+
+        if (toolCall.FunctionName == "lookup_resources")
+        {
+            var result = LookupResources(arguments, availableResources);
+            _conversationLog.Append("Tool result:").AppendLine().Append(result).AppendLine().AppendLine();
+            messages.Add(new ToolChatMessage(toolCall.Id, result));
+            return null;
+        }
+
+        if (toolCall.FunctionName != "propose_hue_action")
+        {
+            messages.Add(new ToolChatMessage(toolCall.Id, "Unsupported tool. Use only the tools provided."));
+            return null;
+        }
+
+        var proposal = ParseProposal(arguments, availableResources);
+        if (proposal.NeedsClarification || proposal.Operation is null)
+        {
+            return [proposal];
+        }
+
+        _proposedIntents.Add(proposal);
+        messages.Add(new ToolChatMessage(toolCall.Id, "Proposal accepted for application validation."));
+        return null;
+    }
+
+    /// <summary>Resolves a model lookup against the discovered Hue catalog.</summary>
+    public static string LookupResources(string json, IReadOnlyList<HueResource> resources)
     {
         try
         {
@@ -179,9 +227,10 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             // Resource IDs are opaque references: only IDs from this server-side catalog are returned to the model.
             var normalizedQuery = NormalizeSearchText(query);
             var normalizedGroup = NormalizeSearchText(groupName);
-            var knownGroups = resources.SelectMany(resource => resource.Groups ?? [])
-                .Concat(resources.Where(resource => resource.Type is HueResourceTypes.Room or HueResourceTypes.Zone).Select(resource =>
-                    new HueResourceGroup(resource.Id, resource.Name, resource.Type))).DistinctBy(group => group.Id);
+            var knownGroups = resources.SelectMany(resource => resource.Groups ?? []).Concat(resources
+                    .Where(resource => resource.Type is HueResourceTypes.Room or HueResourceTypes.Zone)
+                    .Select(resource => new HueResourceGroup(resource.Id, resource.Name, resource.Type)))
+                .DistinctBy(group => group.Id);
             var matchedGroups = knownGroups.Where(group =>
                     (!string.IsNullOrEmpty(groupId) && group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)) ||
                     (!string.IsNullOrEmpty(normalizedGroup) && MatchesSearchText(group.Name, normalizedGroup)) ||
@@ -193,9 +242,11 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             var matches = resources.Where(resource =>
                     (type == "all" || resource.Type.Equals(type, StringComparison.OrdinalIgnoreCase)) &&
                     (string.IsNullOrEmpty(normalizedQuery) || MatchesSearchText(resource.Name, normalizedQuery) ||
-                     (resource.Type.Equals(HueResourceTypes.Light, StringComparison.OrdinalIgnoreCase) && resolvedGroupIds.Count > 0 &&
+                     (resource.Type.Equals(HueResourceTypes.Light, StringComparison.OrdinalIgnoreCase) &&
+                      resolvedGroupIds.Count > 0 &&
                       (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id))) ||
-                     (resource.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase) && resolvedGroupIds.Count > 0 &&
+                     (resource.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase) &&
+                      resolvedGroupIds.Count > 0 &&
                       (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id)))) &&
                     (string.IsNullOrEmpty(normalizedGroup) || (resource.Groups ?? []).Any(group =>
                         NormalizeSearchText(group.Name)
@@ -222,6 +273,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         }
     }
 
+    /// <summary>Validates a proposed action against the discovered Hue catalog.</summary>
     private HueIntent ParseProposal(string json, IReadOnlyList<HueResource> resources)
     {
         try
@@ -249,7 +301,8 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
                     "I couldn't match that to an available Hue resource. Please use the exact name and ID returned by the resource lookup.");
             }
 
-            // A proposed group must be one of the target's actual Bridge associations.
+            // A proposed group must be one of the target's actual Bridge associations; a model cannot attach a
+            // resource to a room or zone merely by naming it.
             string? groupName = null;
             string? groupType = null;
             if (!string.IsNullOrWhiteSpace(proposal.TargetGroupId))
@@ -279,6 +332,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         }
     }
 
+    /// <summary>Determines whether a resource name matches a normalized search query.</summary>
     private static bool MatchesSearchText(string resourceName, string normalizedQuery)
     {
         var normalizedName = NormalizeSearchText(resourceName);
@@ -291,8 +345,10 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         return terms.Length > 1 && terms.All(term => normalizedName.Contains(term, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Normalizes text for tolerant resource-name matching.</summary>
     private static string NormalizeSearchText(string text)
     {
+        // Match user input independently of case, diacritics, punctuation, and common German spellings.
         var normalized = text.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormKD);
         var builder = new StringBuilder(normalized.Length);
         foreach (var character in normalized)
@@ -317,16 +373,13 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
             .Normalize(NormalizationForm.FormC);
     }
 
-    private static IReadOnlyList<HueIntent> Combine(IReadOnlyList<HueIntent> intents)
-    {
-        return intents.Count == 1 ? [intents[0]] : intents.ToArray();
-    }
-
+    /// <summary>Creates an intent that requests clarification from the user.</summary>
     private static HueIntent Clarify(string message)
     {
         return new HueIntent(null, null, null, ClarificationQuestion: message);
     }
 
+    // Mirrors the tool schema. It is deliberately private so unvalidated provider payloads do not escape this boundary.
     private sealed record ActionProposal(
         string Operation,
         string TargetId,

@@ -6,7 +6,11 @@ using OpenAI.Chat;
 
 namespace HuePilot.Infrastructure.IntentParsing;
 
-/// <summary>Uses OpenAI structured JSON output to translate a request into one Hue intent.</summary>
+/// <summary>
+/// Uses OpenAI JSON mode to translate a request into one or more proposed Hue intents.
+/// The model receives only the discovered resource catalog; returned intents remain untrusted until the
+/// application layer resolves their targets and validates each operation.
+/// </summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
 public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
 {
@@ -33,12 +37,32 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
     /// <inheritdoc />
     public string LastConversationLog { get; private set; } = "";
 
-    /// <inheritdoc />
+    /// <summary>Converts a request into proposed Hue intents using structured model output.</summary>
     public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
+        ResetDiagnostics();
+        var client = CreateClient();
+        var messages = CreateMessages(request, history, availableResources);
+        var completion = await client.CompleteChatAsync(messages, CreateOptions(), cancellationToken);
+        LastModelCallCount = 1;
+
+        var json = completion.Value.Content.FirstOrDefault()?.Text ??
+                   throw new InvalidOperationException("The AI provider returned no intent.");
+        LastConversationLog = $"User request:\n{request}\n\nModel response:\n{json}";
+        return ParseIntents(json);
+    }
+
+    /// <summary>Resets diagnostics for a new parsing request.</summary>
+    private void ResetDiagnostics()
+    {
         LastModelCallCount = 0;
         LastConversationLog = "";
+    }
+
+    /// <summary>Creates the configured OpenAI chat client.</summary>
+    private ChatClient CreateClient()
+    {
         var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -46,21 +70,30 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
                 "OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
         }
 
-        var client = new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
+        return new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
             apiKey);
+    }
+
+    /// <summary>Builds the model messages from the request, history, and Hue catalog.</summary>
+    private static List<ChatMessage> CreateMessages(string request, IReadOnlyList<ChatTurn> history,
+        IReadOnlyList<HueResource> availableResources)
+    {
         var messages = new List<ChatMessage> { new SystemChatMessage(SystemPrompt) };
         foreach (var turn in history.TakeLast(12))
         {
-            if (turn.Role == "user")
+            switch (turn.Role)
             {
-                messages.Add(new UserChatMessage(turn.Content));
-            }
-            else if (turn.Role == "assistant")
-            {
-                messages.Add(new AssistantChatMessage(turn.Content));
+                case "user":
+                    messages.Add(new UserChatMessage(turn.Content));
+                    break;
+                case "assistant":
+                    messages.Add(new AssistantChatMessage(turn.Content));
+                    break;
             }
         }
 
+        // The catalog is supplied as data in the final user message rather than as a model-accessible service. This
+        // lets ChatClient send the context needed for name resolution without granting the model Bridge access.
         var catalog = JsonSerializer.Serialize(availableResources.Select(resource => new
         {
             resource.Name,
@@ -68,14 +101,18 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
             groups = (resource.Groups ?? []).Select(group => new { group.Name, group.Type })
         }));
         messages.Add(new UserChatMessage($"Available Hue resources: {catalog}\nLatest request: {request}"));
-        var options = new ChatCompletionOptions { ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat() };
-        var completion = await client.CompleteChatAsync(messages, options, cancellationToken);
-        LastModelCallCount = 1;
-        var json = completion.Value.Content.FirstOrDefault()?.Text ??
-                   throw new InvalidOperationException("The AI provider returned no intent.");
-        LastConversationLog = $"User request:\n{request}\n\nModel response:\n{json}";
+        return messages;
+    }
 
-        // JSON mode guarantees syntax, not safe semantics; HueConversationService resolves and validates the result.
+    /// <summary>Creates options that require JSON object responses.</summary>
+    private static ChatCompletionOptions CreateOptions()
+    {
+        return new ChatCompletionOptions { ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat() };
+    }
+
+    /// <summary>Deserializes the model response into one or more Hue intents.</summary>
+    private static IReadOnlyList<HueIntent> ParseIntents(string json)
+    {
         var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         jsonOptions.Converters.Add(new JsonStringEnumConverter());
         using var document = JsonDocument.Parse(json);

@@ -16,7 +16,7 @@ public sealed class OpenAiToolCallingIntentParserTests
             new("light-ceiling", "Ceiling light", "light", [office])
         };
 
-        var json = OpenAiToolCallingIntentParser.SearchResources(
+        var json = OpenAiToolCallingIntentParser.LookupResources(
             """{"query":"Office","resourceType":"light","groupName":"","groupId":""}""", resources);
         using var document = JsonDocument.Parse(json);
         var matches = document.RootElement.GetProperty("resources").EnumerateArray().ToArray();
