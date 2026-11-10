@@ -15,6 +15,9 @@ public sealed class SimulatorStateTests
 
         var garden = Assert.Single(snapshot.Rooms, room => room.Name == "Garden");
         Assert.Equal(5, garden.LightIds.Count);
+        Assert.Equal(
+            ["Garden path left", "Garden path right", "Garden shed", "Garden spotlight", "Garden terrace"],
+            snapshot.Lights.Where(light => garden.LightIds.Contains(light.Id)).Select(light => light.Name).Order());
 
         var lightIds = snapshot.Lights.Select(light => light.Id).ToHashSet();
         Assert.All(snapshot.Rooms.Concat(snapshot.Zones), group =>
