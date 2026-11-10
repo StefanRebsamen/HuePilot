@@ -12,7 +12,8 @@ namespace HuePilot.Infrastructure.IntentParsing;
 /// application layer resolves their targets and validates each operation.
 /// </summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
-public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
+public sealed class OpenAiStructuredIntentParser(IConfiguration configuration)
+    : OpenAiIntentParserBase(configuration), IAiCallDiagnostics
 {
     private const string SystemPrompt = """
                                         Convert the latest user request into one safe Philips Hue intent. Use only resources listed in the supplied catalog.
@@ -38,7 +39,7 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
     public string LastConversationLog { get; private set; } = "";
 
     /// <summary>Converts a request into proposed Hue intents using structured model output.</summary>
-    public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
+    public override async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
         ResetDiagnostics();
@@ -60,38 +61,11 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration) :
         LastConversationLog = "";
     }
 
-    /// <summary>Creates the configured OpenAI chat client.</summary>
-    private ChatClient CreateClient()
-    {
-        var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException(
-                "OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
-        }
-
-        return new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
-            apiKey);
-    }
-
     /// <summary>Builds the model messages from the request, history, and Hue catalog.</summary>
     private static List<ChatMessage> CreateMessages(string request, IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources)
     {
-        var messages = new List<ChatMessage> { new SystemChatMessage(SystemPrompt) };
-        foreach (var turn in history.TakeLast(12))
-        {
-            switch (turn.Role)
-            {
-                case "user":
-                    messages.Add(new UserChatMessage(turn.Content));
-                    break;
-                case "assistant":
-                    messages.Add(new AssistantChatMessage(turn.Content));
-                    break;
-            }
-        }
-
+        var messages = CreateConversationMessages(SystemPrompt, history);
         // The catalog is supplied as data in the final user message rather than as a model-accessible service. This
         // lets ChatClient send the context needed for name resolution without granting the model Bridge access.
         var catalog = JsonSerializer.Serialize(availableResources.Select(resource => new

@@ -12,7 +12,8 @@ namespace HuePilot.Infrastructure.IntentParsing;
 /// actions; they cannot call a Bridge. HuePilot validates and displays every proposal before any Hue mutation occurs.
 /// </summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
-public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) : IIntentParser, IAiCallDiagnostics
+public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
+    : OpenAiIntentParserBase(configuration), IAiCallDiagnostics
 {
     // Hard limits keep an untrusted model response from consuming unbounded provider calls or catalog output.
     private const int MaxModelTurns = 8;
@@ -61,7 +62,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
     public string LastConversationLog => _conversationLog.ToString();
 
     /// <summary>Converts a request into proposed Hue intents through bounded tool calls.</summary>
-    public async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
+    public override async Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
         ResetState(request);
@@ -79,37 +80,10 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration) 
         _conversationLog.Append("User request:").AppendLine().Append(request).AppendLine().AppendLine();
     }
 
-    /// <summary>Creates the configured OpenAI chat client.</summary>
-    private ChatClient CreateClient()
-    {
-        var apiKey = configuration["OpenAI:ApiKey"] ?? configuration["OPENAI_API_KEY"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException(
-                "OpenAI is not configured. Set the OpenAI:ApiKey user secret to enable AI requests.");
-        }
-
-        return new ChatClient(configuration["OpenAI:Model"] ?? configuration["OPENAI_MODEL"] ?? "gpt-4.1-mini",
-            apiKey);
-    }
-
     /// <summary>Builds the model messages from the request and recent conversation.</summary>
     private static List<ChatMessage> CreateMessages(string request, IReadOnlyList<ChatTurn> history)
     {
-        var messages = new List<ChatMessage> { new SystemChatMessage(SystemPrompt) };
-        foreach (var turn in history.TakeLast(12))
-        {
-            switch (turn.Role)
-            {
-                case "user":
-                    messages.Add(new UserChatMessage(turn.Content));
-                    break;
-                case "assistant":
-                    messages.Add(new AssistantChatMessage(turn.Content));
-                    break;
-            }
-        }
-
+        var messages = CreateConversationMessages(SystemPrompt, history);
         messages.Add(new UserChatMessage(request));
         return messages;
     }
