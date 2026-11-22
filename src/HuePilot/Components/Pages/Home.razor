@@ -141,7 +141,7 @@
         catch (Exception ex)
         {
             var friendly = ex is InvalidOperationException && ex.Message.Contains("OpenAI is not configured", StringComparison.Ordinal) ? "AI requests are not configured yet. Add your OpenAI API key to local .NET user secrets." : "I couldn't complete that request. Please check the connection and try again.";
-            _messages.Add(new ChatMessageView("assistant", friendly, ex.Message));
+            _messages.Add(new ChatMessageView("assistant", friendly, AiConversationDetails()));
         }
         finally
         {
@@ -149,9 +149,12 @@
         }
     }
 
-    private string? AiConversationDetails()
+    private string AiConversationDetails()
     {
-        return string.Equals(Configuration["AI:LogConversation"], "true", StringComparison.OrdinalIgnoreCase) ? AiDiagnostics.LastConversationLog : null;
+        return AiTechnicalDetails.Format(
+            AiApproachState.Current,
+            AiDiagnostics.LastConversationLog,
+            string.Equals(Configuration["AI:LogConversation"], "true", StringComparison.OrdinalIgnoreCase));
     }
 
     private sealed class ChatMessageView(string role, string text, string? technicalDetails = null)
