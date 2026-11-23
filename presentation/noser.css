@@ -1,0 +1,115 @@
+/* @theme noser */
+
+@import 'default';
+
+section {
+    background: white;
+    color: black;
+    align-content: start;
+    padding: 24px 48px;
+}
+
+h1,
+h2 {
+    color: orange;
+}
+
+strong {
+    font-weight: bold;
+}
+
+code {
+    background: lightgray;
+}
+
+pre {
+    background: #0b1b2c;
+    border: 1px solid #1f4967;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 0.62em;
+}
+
+table {
+    font-size: 0.68em;
+}
+
+th {
+    font-weight: bold;
+    background: lightgray;
+}
+
+.accent {
+    color: #ffe18a;
+}
+
+
+.flow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre;
+    font-size: 0.62em;
+    line-height: 1.25;
+    color: #d9e6f5;
+    background: #0b1b2c;
+    border: 1px solid #1f4967;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.callout {
+    border-left: 6px solid orange;
+    background: lightgray;
+    padding: 6px 18px;
+    margin: 6px 0;
+    border-radius: 6px;
+}
+
+footer {
+    color: #9db0c4;
+}
+
+
+section.cover {
+    background: linear-gradient(
+        143deg,
+         white, white 49.9%,
+         orange 50.1%,orange);
+}
+
+section.cover h1 {
+    font-size: 3em;
+}
+
+section.cover h2 {
+    font-size: 2em;
+}
+
+section.lead {
+    background: gray;
+}
+
+section.lead h1 {
+    font-size: 3em;
+}
+
+section.lead h2 {
+    font-size: 2em;
+}
+
+section .text-image {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+section .text-image > div > :first-child {
+  margin-top: 0;
+}
+
+section .text-image img {
+  display: block;
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+}
