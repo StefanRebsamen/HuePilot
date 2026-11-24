@@ -1,8 +1,7 @@
 using HuePilot.Application;
+using HuePilot.Application.Chat;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure;
-using HuePilot.Infrastructure.Hue;
-using HuePilot.Infrastructure.IntentParsing;
+using HuePilot.Application.IntentParsing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

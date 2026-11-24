@@ -1,6 +1,7 @@
 using System.Text.Json;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure.IntentParsing;
+using HuePilot.Application.Hue.Models;
+using HuePilot.Application.IntentParsing;
 
 namespace HuePilot.Tests;
 

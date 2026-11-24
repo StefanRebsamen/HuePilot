@@ -1,6 +1,6 @@
-using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 
-namespace HuePilot.Application;
+namespace HuePilot.Application.Chat;
 
 /// <summary>The assistant's proposed action or clarification, before any Hue mutation is executed.</summary>
 /// <param name="AssistantMessage">Text shown in the chat.</param>

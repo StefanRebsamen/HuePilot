@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using HuePilot.Application;
-using HuePilot.Application.Hue;
+using HuePilot.Application.Chat;
+using HuePilot.Application.Hue.Models;
 using OpenAI.Chat;
 
-namespace HuePilot.Infrastructure.IntentParsing;
+namespace HuePilot.Application.IntentParsing;
 
 /// <summary>
 /// Uses OpenAI JSON mode to translate a request into one or more proposed Hue intents.

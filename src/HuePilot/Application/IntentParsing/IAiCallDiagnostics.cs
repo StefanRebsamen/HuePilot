@@ -1,4 +1,4 @@
-namespace HuePilot.Infrastructure.IntentParsing;
+namespace HuePilot.Application.IntentParsing;
 
 /// <summary>
 /// Exposes diagnostics for the most recent parse operation to the optional AI evaluation runner.

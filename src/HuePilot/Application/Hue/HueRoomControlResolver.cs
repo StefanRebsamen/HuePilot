@@ -1,8 +1,8 @@
-using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 using ApiGroupedLight = HueApi.Models.GroupedLight;
 using ApiRoom = HueApi.Models.Room;
 
-namespace HuePilot.Infrastructure.Hue;
+namespace HuePilot.Application.Hue;
 
 /// <summary>Resolves the grouped-light service that controls a Hue room.</summary>
 public static class HueRoomControlResolver

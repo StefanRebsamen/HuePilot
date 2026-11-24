@@ -1,6 +1,6 @@
-using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 
-namespace HuePilot.Infrastructure.Hue;
+namespace HuePilot.Application.Hue;
 
 /// <summary>An in-memory stand-in used when Hue Bridge credentials are not configured.</summary>
 public sealed class DemoHueService : IHueService

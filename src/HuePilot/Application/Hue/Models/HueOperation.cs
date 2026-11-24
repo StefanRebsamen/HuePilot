@@ -1,4 +1,4 @@
-namespace HuePilot.Application.Hue;
+namespace HuePilot.Application.Hue.Models;
 
 /// <summary>Operations that HuePilot is allowed to perform on discovered Hue resources.</summary>
 public enum HueOperation

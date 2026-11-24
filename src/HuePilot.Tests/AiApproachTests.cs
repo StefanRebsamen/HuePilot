@@ -1,4 +1,5 @@
 using HuePilot.Application;
+using HuePilot.Application.Chat;
 
 namespace HuePilot.Tests;
 

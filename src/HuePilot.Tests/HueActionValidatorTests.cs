@@ -1,4 +1,5 @@
 using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 
 namespace HuePilot.Tests;
 

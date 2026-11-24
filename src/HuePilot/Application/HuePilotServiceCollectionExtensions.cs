@@ -1,9 +1,8 @@
-using HuePilot.Application;
+using HuePilot.Application.Chat;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure.Hue;
-using HuePilot.Infrastructure.IntentParsing;
+using HuePilot.Application.IntentParsing;
 
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Application;
 
 /// <summary>Registers HuePilot application services and their infrastructure implementations.</summary>
 public static class HuePilotServiceCollectionExtensions

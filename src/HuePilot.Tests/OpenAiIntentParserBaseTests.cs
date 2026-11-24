@@ -1,6 +1,8 @@
 using HuePilot.Application;
+using HuePilot.Application.Chat;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure.IntentParsing;
+using HuePilot.Application.Hue.Models;
+using HuePilot.Application.IntentParsing;
 using OpenAI.Chat;
 
 namespace HuePilot.Tests;

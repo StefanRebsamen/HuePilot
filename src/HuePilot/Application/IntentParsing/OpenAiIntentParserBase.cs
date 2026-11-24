@@ -1,8 +1,8 @@
-using HuePilot.Application;
-using HuePilot.Application.Hue;
+using HuePilot.Application.Chat;
+using HuePilot.Application.Hue.Models;
 using OpenAI.Chat;
 
-namespace HuePilot.Infrastructure.IntentParsing;
+namespace HuePilot.Application.IntentParsing;
 
 /// <summary>
 /// Provides the common OpenAI client setup and conversation-history conversion used by Hue intent parsers.

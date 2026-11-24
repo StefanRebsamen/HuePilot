@@ -1,13 +1,13 @@
 using HueApi.Models;
-using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 using ApiDevice = HueApi.Models.Device;
 using ApiLight = HueApi.Models.Light;
 using ApiRoom = HueApi.Models.Room;
 using ApiScene = HueApi.Models.Scene;
 using ApiZone = HueApi.Models.Zone;
-using AppHueResource = HuePilot.Application.Hue.HueResource;
+using AppHueResource = HuePilot.Application.Hue.Models.HueResource;
 
-namespace HuePilot.Infrastructure.Hue;
+namespace HuePilot.Application.Hue;
 
 /// <summary>
 /// Maps Bridge v2 group membership into application resources.

@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using HueApi.Models.Requests;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure.Hue;
+using HuePilot.Application.Hue.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace HuePilot.Tests;

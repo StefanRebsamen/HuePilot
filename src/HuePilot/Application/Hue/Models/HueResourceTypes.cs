@@ -1,4 +1,4 @@
-namespace HuePilot.Application.Hue;
+namespace HuePilot.Application.Hue.Models;
 
 /// <summary>Canonical Hue resource type identifiers used within the application.</summary>
 public static class HueResourceTypes

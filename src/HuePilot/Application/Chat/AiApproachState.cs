@@ -1,6 +1,4 @@
-using HuePilot.Application;
-
-namespace HuePilot.Infrastructure;
+namespace HuePilot.Application.Chat;
 
 /// <summary>
 /// Stores the selected AI approach for the current browser circuit. The UI also persists the choice in protected

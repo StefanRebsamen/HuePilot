@@ -1,4 +1,4 @@
-namespace HuePilot.Application.Hue;
+namespace HuePilot.Application.Hue.Models;
 
 /// <summary>A Hue resource discovered from the Bridge or supplied by the demo service.</summary>
 /// <param name="Id">The stable resource ID used for validated operations.</param>

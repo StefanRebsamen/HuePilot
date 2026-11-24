@@ -1,6 +1,6 @@
-using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 
-namespace HuePilot.Application;
+namespace HuePilot.Application.Chat;
 
 /// <summary>Converts natural-language requests into structured Hue intents.</summary>
 public interface IIntentParser

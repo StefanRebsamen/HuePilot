@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Chat;
 
 /// <summary>One user or assistant utterance retained for the current chat session.</summary>
 /// <param name="Role">The speaker, normally <c>user</c> or <c>assistant</c>.</param>

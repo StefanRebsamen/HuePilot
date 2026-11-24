@@ -1,11 +1,12 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using HuePilot.Application;
+using HuePilot.Application.Chat;
 using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 using OpenAI.Chat;
 
-namespace HuePilot.Infrastructure.IntentParsing;
+namespace HuePilot.Application.IntentParsing;
 
 /// <summary>
 /// Implements a bounded, tool-driven planning loop. Its tools can search only the supplied Hue catalog and propose

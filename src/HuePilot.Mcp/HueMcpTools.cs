@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Net.Sockets;
 using System.Text.Json;
 using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 using ModelContextProtocol.Server;
 
 namespace HuePilot.Mcp;

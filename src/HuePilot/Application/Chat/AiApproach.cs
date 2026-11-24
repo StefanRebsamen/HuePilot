@@ -1,4 +1,4 @@
-namespace HuePilot.Application;
+namespace HuePilot.Application.Chat;
 
 /// <summary>Identifies an AI intent-planning approach.</summary>
 public enum AiApproach

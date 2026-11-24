@@ -1,7 +1,7 @@
-using HuePilot.Application;
-using HuePilot.Application.Hue;
+using HuePilot.Application.Chat;
+using HuePilot.Application.Hue.Models;
 
-namespace HuePilot.Infrastructure.IntentParsing;
+namespace HuePilot.Application.IntentParsing;
 
 /// <summary>
 /// Selects the parsing strategy configured for the current circuit and exposes that strategy's diagnostics.

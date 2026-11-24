@@ -1,3 +1,5 @@
+using HuePilot.Application.Hue.Models;
+
 namespace HuePilot.Application.Hue;
 
 /// <summary>Application boundary for reading Hue resources and executing validated actions.</summary>

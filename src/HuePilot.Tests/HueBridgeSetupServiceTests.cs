@@ -1,4 +1,4 @@
-using HuePilot.Infrastructure.Hue;
+using HuePilot.Application.Hue;
 
 namespace HuePilot.Tests;
 

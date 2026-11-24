@@ -1,3 +1,6 @@
+using HuePilot.Application.Chat;
+using HuePilot.Application.Hue.Models;
+
 namespace HuePilot.Application.Hue;
 
 /// <summary>

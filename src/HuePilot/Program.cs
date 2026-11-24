@@ -1,5 +1,5 @@
+using HuePilot.Application;
 using HuePilot.Components;
-using HuePilot.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
