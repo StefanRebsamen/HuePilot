@@ -1,6 +1,5 @@
 using HuePilot.Application;
 using HuePilot.Application.Hue;
-using HuePilot.Infrastructure.IntentParsing;
 
 namespace HuePilot.Tests;
 
@@ -18,11 +17,11 @@ public sealed class HueConversationServiceTests
 
         var result = await service.PlanAsync("Set the office to 65 percent", []);
 
-        Assert.Equal(HueOperation.SetBrightness, result.ProposedAction?.Operation);
-        Assert.Equal(65, result.ProposedAction?.BrightnessPercent);
+        Assert.Equal(HueOperation.SetBrightness, result.ProposedActions!.Single().Operation);
+        Assert.Equal(65, result.ProposedActions!.Single().BrightnessPercent);
         Assert.Empty(hue.Executed);
         Assert.Contains("65%", result.AssistantMessage);
-        await service.ExecuteAsync(result.ProposedAction!);
+        await service.ExecuteAsync(result.ProposedActions!.Single());
         Assert.Single(hue.Executed);
     }
 
@@ -56,7 +55,7 @@ public sealed class HueConversationServiceTests
 
         Assert.Contains("Desk lamp", result.AssistantMessage);
         Assert.Contains("Ceiling light", result.AssistantMessage);
-        Assert.Null(result.ProposedAction);
+        Assert.Null(result.ProposedActions);
     }
 
     [Fact]
@@ -69,8 +68,8 @@ public sealed class HueConversationServiceTests
 
         var result = await service.PlanAsync("Turn on upstairs", []);
 
-        Assert.Equal("zone-upstairs", result.ProposedAction?.Target.Id);
-        Assert.Equal(HueOperation.TurnOn, result.ProposedAction?.Operation);
+        Assert.Equal("zone-upstairs", result.ProposedActions!.Single().Target.Id);
+        Assert.Equal(HueOperation.TurnOn, result.ProposedActions!.Single().Operation);
     }
 
     [Fact]
@@ -155,7 +154,7 @@ public sealed class HueConversationServiceTests
 
         var result = await service.PlanAsync("Activate Relax in the Bedroom", []);
 
-        Assert.Equal("scene-bedroom", result.ProposedAction?.Target.Id);
+        Assert.Equal("scene-bedroom", result.ProposedActions!.Single().Target.Id);
         Assert.Contains("Bedroom", result.AssistantMessage);
         Assert.Empty(hue.Executed);
     }
@@ -209,8 +208,8 @@ public sealed class HueConversationServiceTests
                 [new HueResourceGroup("room-kitchen", "Kitchen", "room")])
         ]);
         var service =
-            new HueConversationService(
-                new FakeIntentParser(new HueIntent(HueOperation.ActivateScene, "Relax", "scene")), hue);
+                new HueConversationService(
+            new FakeIntentParser(new HueIntent(HueOperation.ActivateScene, "Relax", "scene")), hue);
 
         var result = await service.PlanAsync("Activate Relax in Bedroom and Kitchen", []);
 

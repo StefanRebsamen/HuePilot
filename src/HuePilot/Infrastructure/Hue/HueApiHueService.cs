@@ -147,9 +147,8 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
             var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == groupId);
             groupedServices = room.GroupedServices;
 
-            var configuredId = groupedServices
-                .FirstOrDefault(x => x.Rtype.Equals(HueResourceTypes.GroupedLight,
-                    StringComparison.OrdinalIgnoreCase))?.Rid;
+            var configuredId = groupedServices.FirstOrDefault(x =>
+                x.Rtype.Equals(HueResourceTypes.GroupedLight, StringComparison.OrdinalIgnoreCase))?.Rid;
             if (configuredId is not null)
             {
                 return configuredId;

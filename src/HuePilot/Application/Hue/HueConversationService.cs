@@ -16,15 +16,14 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
     {
         if (string.IsNullOrWhiteSpace(request))
         {
-            return new ConversationPlan("Please enter a request.", NeedsClarification: true);
+            return new ConversationPlan("Please enter a request.", true);
         }
 
         var resources = await hueService.GetResourcesAsync(cancellationToken);
         var intents = await parser.ParseAsync(request, history, resources, cancellationToken);
         if (intents.Count == 0)
         {
-            return new ConversationPlan("I couldn't determine the requested action. Could you rephrase it?",
-                NeedsClarification: true);
+            return new ConversationPlan("I couldn't determine the requested action. Could you rephrase it?", true);
         }
 
         var actions = new List<HueAction>();
@@ -37,9 +36,9 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
                 return resolved;
             }
 
-            if (resolved.ProposedAction is not null)
+            if (resolved.ProposedActions is not null)
             {
-                actions.Add(resolved.ProposedAction);
+                actions.AddRange(resolved.ProposedActions);
             }
             else
             {
@@ -52,7 +51,7 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
             return new ConversationPlan(
                 messages.Count > 0
                     ? string.Join(" ", messages.Concat([DescribeActions(actions)]))
-                    : DescribeActions(actions), actions[0], ProposedActions: actions);
+                    : DescribeActions(actions), ProposedActions: actions);
         }
 
         return new ConversationPlan(string.Join(" ", messages));
@@ -63,7 +62,7 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
     {
         if (intent.NeedsClarification)
         {
-            return new ConversationPlan(intent.ClarificationQuestion!, NeedsClarification: true);
+            return new ConversationPlan(intent.ClarificationQuestion!, true);
         }
 
         if (intent.Operation == HueOperation.ListResources)
@@ -71,11 +70,10 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
             return new ConversationPlan(DescribeResources(intent, resources));
         }
 
-        if (intent.Operation is null || string.IsNullOrWhiteSpace(intent.TargetName) ||
-            string.IsNullOrWhiteSpace(intent.TargetType))
+        if (string.IsNullOrWhiteSpace(intent.TargetName) || string.IsNullOrWhiteSpace(intent.TargetType))
         {
             return new ConversationPlan("I couldn't determine the action and target. Could you rephrase your request?",
-                NeedsClarification: true);
+                true);
         }
 
         var matches = resources.Where(resource =>
@@ -85,8 +83,9 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
         // Trust room names only when they also appear in a discovered association; this grounds
         // duplicate scene/light selection in Bridge data instead of relying on a model guess.
         var explicitGroups =
-            intent.TargetType is not null && (intent.TargetType.Equals(HueResourceTypes.Room, StringComparison.OrdinalIgnoreCase) ||
-                                              intent.TargetType.Equals(HueResourceTypes.Zone, StringComparison.OrdinalIgnoreCase))
+            intent.TargetType is not null &&
+            (intent.TargetType.Equals(HueResourceTypes.Room, StringComparison.OrdinalIgnoreCase) ||
+             intent.TargetType.Equals(HueResourceTypes.Zone, StringComparison.OrdinalIgnoreCase))
                 ? []
                 : resources.SelectMany(resource => resource.Groups ?? []).DistinctBy(group => group.Id)
                     .Where(group => ContainsWholePhrase(request, group.Name)).ToArray();
@@ -95,7 +94,7 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
         {
             return new ConversationPlan(
                 $"The request mentions multiple rooms or zones: {string.Join(", ", explicitGroups.Select(group => group.Name).Distinct(StringComparer.OrdinalIgnoreCase))}. Which one should I use?",
-                NeedsClarification: true);
+                true);
         }
 
         if (explicitGroups.Length == 1 && !string.IsNullOrWhiteSpace(intent.TargetGroupName) && !explicitGroups[0].Name
@@ -103,7 +102,7 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
         {
             return new ConversationPlan(
                 $"The request mentions {explicitGroups[0].Name}, but the proposed resource is associated with {intent.TargetGroupName}. Which room or group did you mean?",
-                NeedsClarification: true);
+                true);
         }
 
         var requestedGroupName = intent.TargetGroupName ?? (explicitGroups.Length == 1 ? explicitGroups[0].Name : null);
@@ -120,7 +119,7 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
             {
                 return new ConversationPlan(
                     $"I couldn't find a {intent.TargetType} named ‘{intent.TargetName}’ associated with {requestedGroupType ?? "group"} ‘{requestedGroupName}’. Which room or scene did you mean?",
-                    NeedsClarification: true);
+                    true);
             }
         }
 
@@ -128,13 +127,12 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
         {
             return new ConversationPlan(
                 $"I couldn't find a {intent.TargetType} named ‘{intent.TargetName}’. Which room, zone, light, or scene did you mean?",
-                NeedsClarification: true);
+                true);
         }
 
         if (matches.Length > 1)
         {
-            return new ConversationPlan(DescribeAmbiguousMatches(intent.TargetType, intent.TargetName, matches),
-                NeedsClarification: true);
+            return new ConversationPlan(DescribeAmbiguousMatches(intent.TargetType, intent.TargetName, matches), true);
         }
 
         var target = matches[0];
@@ -146,11 +144,13 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
                 !target.Type.Equals(HueResourceTypes.Zone, StringComparison.OrdinalIgnoreCase))
             {
                 return new ConversationPlan("I can report the status of a light, room, or zone, but not a scene.",
-                    NeedsClarification: true);
+                    true);
             }
 
             var status = await hueService.GetStatusAsync(target, cancellationToken);
-            var brightness = status.BrightnessPercent is null ? string.Empty : $" at {status.BrightnessPercent}% brightness";
+            var brightness = status.BrightnessPercent is null
+                ? string.Empty
+                : $" at {status.BrightnessPercent}% brightness";
             var color = status.ColorX is null || status.ColorY is null
                 ? string.Empty
                 : $" with xy ({status.ColorX:F4}, {status.ColorY:F4})";
@@ -159,23 +159,23 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
 
         if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))
         {
-            return new ConversationPlan(validationError, NeedsClarification: true);
+            return new ConversationPlan(validationError, true);
         }
 
-        return new ConversationPlan(Describe(action!), action);
+        return new ConversationPlan(Describe(action!), false, [action!]);
     }
 
-    private static string DescribeResources(HueIntent intent, IReadOnlyList<HueResource> resources)
+    private static string DescribeResources(HueIntent query, IReadOnlyList<HueResource> resources)
     {
-        var desiredType = intent.TargetType?.Trim().ToLowerInvariant() switch
+        var desiredType = query.TargetType?.Trim().ToLowerInvariant() switch
         {
             HueResourceTypes.Room => HueResourceTypes.Room,
             HueResourceTypes.Scene => HueResourceTypes.Scene,
             HueResourceTypes.Zone => HueResourceTypes.Zone,
             _ => HueResourceTypes.Light
         };
-        var groupName = intent.TargetGroupName?.Trim();
-        var nameFilter = intent.TargetName?.Trim();
+        var groupName = query.TargetGroupName?.Trim();
+        var nameFilter = query.TargetName?.Trim();
 
         var matches = resources.Where(resource =>
         {
@@ -245,8 +245,7 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
     private static string DescribeScene(HueResource scene)
     {
         var rooms = (scene.Groups ?? []).Where(group => group.Type.Equals(HueResourceTypes.Room,
-            StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+            StringComparison.OrdinalIgnoreCase)).ToArray();
         return rooms.Length == 1
             ? $"Activating the {scene.Name} scene in {rooms[0].Name}."
             : $"Activating the {scene.Name} scene.";

@@ -36,9 +36,8 @@ public static class HueResourceMapper
         var groupsById = roomList
             .Select(room => new HueResourceGroup(room.Id.ToString(), Name(room.Metadata?.Name, "Unnamed room"),
                 HueResourceTypes.Room))
-            .Concat(zoneList.Select(zone =>
-                new HueResourceGroup(zone.Id.ToString(), Name(zone.Metadata?.Name, "Unnamed zone"),
-                    HueResourceTypes.Zone)))
+            .Concat(zoneList.Select(zone => new HueResourceGroup(zone.Id.ToString(),
+                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceTypes.Zone)))
             .ToDictionary(group => Guid.Parse(group.Id));
 
         var lightGroups = new Dictionary<Guid, List<HueResourceGroup>>();
@@ -57,10 +56,10 @@ public static class HueResourceMapper
             .. lights.Select(light => new AppHueResource(light.Id.ToString(),
                 Name(light.Metadata?.Name, "Unnamed light"), HueResourceTypes.Light,
                 lightGroups.TryGetValue(light.Id, out var memberships) ? memberships : [])),
-            .. roomList.Select(room => new AppHueResource(
-                room.Id.ToString(), Name(room.Metadata?.Name, "Unnamed room"), HueResourceTypes.Room)),
-            .. zoneList.Select(zone => new AppHueResource(
-                zone.Id.ToString(), Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceTypes.Zone)),
+            .. roomList.Select(room => new AppHueResource(room.Id.ToString(),
+                Name(room.Metadata?.Name, "Unnamed room"), HueResourceTypes.Room)),
+            .. zoneList.Select(zone => new AppHueResource(zone.Id.ToString(),
+                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceTypes.Zone)),
             .. scenes.Select(scene => new AppHueResource(scene.Id.ToString(),
                 Name(scene.Metadata?.Name, "Unnamed scene"), HueResourceTypes.Scene, sceneGroups[scene.Id]))
         ];
@@ -80,11 +79,13 @@ public static class HueResourceMapper
                     {
                         AddLightGroup(child.Rid, group);
                     }
-                    else if (child.Rtype == HueResourceTypes.Device && deviceById.TryGetValue(child.Rid, out var device))
+                    else if (child.Rtype == HueResourceTypes.Device &&
+                             deviceById.TryGetValue(child.Rid, out var device))
                     {
                         // Rooms commonly list devices rather than light services. Follow the
                         // device's service links to attach the group to the controllable light.
-                        foreach (var service in (device.Services ?? []).Where(service => service.Rtype == HueResourceTypes.Light))
+                        foreach (var service in (device.Services ?? []).Where(service =>
+                                     service.Rtype == HueResourceTypes.Light))
                         {
                             AddLightGroup(service.Rid, group);
                         }

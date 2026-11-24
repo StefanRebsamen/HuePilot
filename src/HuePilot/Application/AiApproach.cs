@@ -14,12 +14,15 @@ public enum AiApproach
 public static class AiApproachExtensions
 {
     /// <summary>Gets the approach name displayed in chat technical details.</summary>
-    public static string GetDisplayName(this AiApproach approach) => approach switch
+    public static string GetDisplayName(this AiApproach approach)
     {
-        AiApproach.Structured => "Structured output",
-        AiApproach.Tools => "Tool calling",
-        _ => throw new ArgumentOutOfRangeException(nameof(approach), approach, null)
-    };
+        return approach switch
+        {
+            AiApproach.Structured => "Structured output",
+            AiApproach.Tools => "Tool calling",
+            _ => throw new ArgumentOutOfRangeException(nameof(approach), approach, null)
+        };
+    }
 }
 
 /// <summary>Builds privacy-safe technical details for a chat response.</summary>

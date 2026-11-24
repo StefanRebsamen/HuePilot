@@ -121,20 +121,17 @@
             var plan = await Conversation.PlanAsync(request, _history);
             _history.Add(new ChatTurn("user", request));
 
-            if (plan.ProposedAction is null)
-            {
-                _messages.Add(new ChatMessageView("assistant", plan.AssistantMessage, AiConversationDetails()));
-                _history.Add(new ChatTurn("assistant", plan.AssistantMessage));
-                return;
-            }
-
             var response = new ChatMessageView("assistant", plan.AssistantMessage, AiConversationDetails());
             _messages.Add(response);
             await InvokeAsync(StateHasChanged);
             await Task.Yield();
 
-            foreach (var action in plan.ProposedActions ?? [plan.ProposedAction])
-                await Conversation.ExecuteAsync(action);
+            if (plan.ProposedActions != null)
+            {
+                foreach (var action in plan.ProposedActions)
+                    await Conversation.ExecuteAsync(action);
+            }
+
             response.Text += " Done.";
             _history.Add(new ChatTurn("assistant", response.Text));
         }
@@ -151,10 +148,7 @@
 
     private string AiConversationDetails()
     {
-        return AiTechnicalDetails.Format(
-            AiApproachState.Current,
-            AiDiagnostics.LastConversationLog,
-            string.Equals(Configuration["AI:LogConversation"], "true", StringComparison.OrdinalIgnoreCase));
+        return AiTechnicalDetails.Format(AiApproachState.Current, AiDiagnostics.LastConversationLog, string.Equals(Configuration["AI:LogConversation"], "true", StringComparison.OrdinalIgnoreCase));
     }
 
     private sealed class ChatMessageView(string role, string text, string? technicalDetails = null)

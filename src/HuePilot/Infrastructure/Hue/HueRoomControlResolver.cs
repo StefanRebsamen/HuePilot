@@ -1,6 +1,6 @@
+using HuePilot.Application.Hue;
 using ApiGroupedLight = HueApi.Models.GroupedLight;
 using ApiRoom = HueApi.Models.Room;
-using HuePilot.Application.Hue;
 
 namespace HuePilot.Infrastructure.Hue;
 

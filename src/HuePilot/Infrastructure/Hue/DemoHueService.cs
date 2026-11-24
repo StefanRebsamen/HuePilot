@@ -7,7 +7,8 @@ public sealed class DemoHueService : IHueService
 {
     private readonly IReadOnlyList<HueResource> _resources =
     [
-        new("room-office", "Office", HueResourceTypes.Room), new("zone-upstairs", "Upstairs", HueResourceTypes.Zone),
+        new("room-office", "Office", HueResourceTypes.Room),
+        new("zone-upstairs", "Upstairs", HueResourceTypes.Zone),
         new("light-desk", "Desk lamp", HueResourceTypes.Light,
             [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)]),
         new("light-ceiling", "Ceiling light", HueResourceTypes.Light,

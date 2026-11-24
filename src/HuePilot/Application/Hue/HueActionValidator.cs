@@ -10,13 +10,8 @@ public static class HueActionValidator
 
     private static readonly ValidationStage[] ValidationPipeline =
     [
-        ValidateOperation,
-        ValidateBrightness,
-        ValidateColor,
-        AcceptListResources,
-        ValidateResourceType,
-        ValidateStatusResourceType,
-        ValidateSceneOperation
+        ValidateOperation, ValidateBrightness, ValidateColor, ValidateColorIsNotPink, AcceptListResources,
+        ValidateResourceType, ValidateStatusResourceType, ValidateSceneOperation
     ];
 
     /// <summary>Creates an executable action only when the intent matches the resolved resource and valid ranges.</summary>
@@ -27,8 +22,7 @@ public static class HueActionValidator
     /// <returns><see langword="true" /> when a safe action was created.</returns>
     public static bool TryCreate(HueIntent intent, HueResource target, out HueAction? action, out string error)
     {
-        var result = ValidationPipeline
-            .Select(stage => stage(intent, target))
+        var result = ValidationPipeline.Select(stage => stage(intent, target))
             .FirstOrDefault(stageResult => stageResult.Outcome is not ValidationOutcome.Continue);
 
         if (result.Outcome is ValidationOutcome.Reject)
@@ -43,56 +37,82 @@ public static class HueActionValidator
         return true;
     }
 
-    private static ValidationResult ValidateOperation(HueIntent intent, HueResource _) =>
-        intent.Operation is null
+    private static ValidationResult ValidateOperation(HueIntent intent, HueResource _)
+    {
+        return intent.Operation is null
             ? ValidationResult.Reject("That action isn't supported.")
             : ValidationResult.Continue;
+    }
 
-    private static ValidationResult ValidateBrightness(HueIntent intent, HueResource _) =>
-        intent.Operation == HueOperation.SetBrightness && intent.BrightnessPercent is not (>= 1 and <= 100)
+    private static ValidationResult ValidateBrightness(HueIntent intent, HueResource _)
+    {
+        return intent.Operation == HueOperation.SetBrightness && intent.BrightnessPercent is not (>= 1 and <= 100)
             ? ValidationResult.Reject("Brightness must be a whole-number percentage from 1 to 100.")
             : ValidationResult.Continue;
+    }
 
-    private static ValidationResult ValidateColor(HueIntent intent, HueResource _) =>
-        intent.Operation switch
+    private static ValidationResult ValidateColor(HueIntent intent, HueResource _)
+    {
+        return intent.Operation switch
         {
             not HueOperation.SetColor => ValidationResult.Continue,
-            _ when string.IsNullOrWhiteSpace(intent.Color) =>
-                ValidationResult.Reject("I couldn't determine a color. Which color should I use?"),
-            _ when AllowedColors.Contains(intent.Color!.Trim(), StringComparer.OrdinalIgnoreCase) =>
-                ValidationResult.Continue,
+            _ when string.IsNullOrWhiteSpace(intent.Color) => ValidationResult.Reject(
+                "I couldn't determine a color. Which color should I use?"),
+            _ when AllowedColors.Contains(intent.Color!.Trim(), StringComparer.OrdinalIgnoreCase) => ValidationResult
+                .Continue,
             _ => ValidationResult.Reject(
                 "Please choose a named color such as red, orange, yellow, green, blue, purple, pink, or white.")
         };
+    }
 
-    private static ValidationResult AcceptListResources(HueIntent intent, HueResource _) =>
-        intent.Operation == HueOperation.ListResources
-            ? ValidationResult.Accept
-            : ValidationResult.Continue;
-
-    private static ValidationResult ValidateResourceType(HueIntent _, HueResource target) =>
-        target.Type is HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light or HueResourceTypes.Scene
-            ? ValidationResult.Continue
-            : ValidationResult.Reject("That Hue resource type isn't supported.");
-
-    private static ValidationResult ValidateStatusResourceType(HueIntent intent, HueResource target) =>
-        intent.Operation != HueOperation.GetStatus ||
-        target.Type is HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light
-            ? ValidationResult.Continue
-            : ValidationResult.Reject("Hue status can only be reported for lights, rooms, and zones.");
-
-    private static ValidationResult ValidateSceneOperation(HueIntent intent, HueResource target) =>
-        (intent.Operation, IsScene(target)) switch
+    private static ValidationResult ValidateColorIsNotPink(HueIntent intent, HueResource _)
+    {
+        return intent.Operation switch
         {
-            (HueOperation.ActivateScene, false) =>
-                ValidationResult.Reject("Only an existing scene can be activated as a scene."),
-            (not HueOperation.ActivateScene, true) =>
-                ValidationResult.Reject("That operation can't be applied to a scene."),
+            not HueOperation.SetColor => ValidationResult.Continue,
+            _ when string.Equals(intent.Color, "pink", StringComparison.OrdinalIgnoreCase) => ValidationResult.Reject(
+                "I can't stand pink!!!!!"),
             _ => ValidationResult.Continue
         };
+    }
 
-    private static bool IsScene(HueResource target) =>
-        target.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase);
+    private static ValidationResult ValidateResourceType(HueIntent _, HueResource target)
+    {
+        return target.Type is HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light
+            or HueResourceTypes.Scene
+            ? ValidationResult.Continue
+            : ValidationResult.Reject("That Hue resource type isn't supported.");
+    }
+
+    private static ValidationResult ValidateSceneOperation(HueIntent intent, HueResource target)
+    {
+        return (intent.Operation, IsScene(target)) switch
+        {
+            (HueOperation.ActivateScene, false) => ValidationResult.Reject(
+                "Only an existing scene can be activated as a scene."),
+            (not HueOperation.ActivateScene, true) => ValidationResult.Reject(
+                "That operation can't be applied to a scene."),
+            _ => ValidationResult.Continue
+        };
+    }
+
+    private static bool IsScene(HueResource target)
+    {
+        return target.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ValidationResult AcceptListResources(HueIntent intent, HueResource _)
+    {
+        return intent.Operation == HueOperation.ListResources ? ValidationResult.Accept : ValidationResult.Continue;
+    }
+
+    private static ValidationResult ValidateStatusResourceType(HueIntent intent, HueResource target)
+    {
+        return intent.Operation != HueOperation.GetStatus ||
+               target.Type is HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light
+            ? ValidationResult.Continue
+            : ValidationResult.Reject("Hue status can only be reported for lights, rooms, and zones.");
+    }
 
     private delegate ValidationResult ValidationStage(HueIntent intent, HueResource target);
 
@@ -107,6 +127,10 @@ public static class HueActionValidator
     {
         public static ValidationResult Continue => new(ValidationOutcome.Continue);
         public static ValidationResult Accept => new(ValidationOutcome.Accept);
-        public static ValidationResult Reject(string error) => new(ValidationOutcome.Reject, error);
+
+        public static ValidationResult Reject(string error)
+        {
+            return new ValidationResult(ValidationOutcome.Reject, error);
+        }
     }
 }

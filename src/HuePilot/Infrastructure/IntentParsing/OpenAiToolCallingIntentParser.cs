@@ -99,7 +99,8 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
 
     /// <summary>Runs the bounded model and tool-call planning loop.</summary>
     private async Task<IReadOnlyList<HueIntent>> RunPlanningLoopAsync(ChatClient client, List<ChatMessage> messages,
-        ChatCompletionOptions options, IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken)
+        ChatCompletionOptions options, IReadOnlyList<HueResource> availableResources,
+        CancellationToken cancellationToken)
     {
         for (var turn = 0; turn < MaxModelTurns; turn++)
         {
@@ -120,8 +121,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             }
         }
 
-        return _proposedIntents.Count > 0 ? _proposedIntents : [Clarify(
-            "I couldn't safely identify one action. Could you make the request more specific?")];
+        return _proposedIntents.Count > 0
+            ? _proposedIntents
+            : [Clarify("I couldn't safely identify one action. Could you make the request more specific?")];
     }
 
     /// <summary>Converts a text-only model response into proposals or a clarification.</summary>
@@ -130,9 +132,12 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
         _conversationLog.Append("Model response:").AppendLine().Append(clarification).AppendLine();
         return _proposedIntents.Count > 0
             ? _proposedIntents
-            : [Clarify(string.IsNullOrWhiteSpace(clarification)
-                ? "What room or light should I use, and what change would you like?"
-                : clarification.Trim())];
+            :
+            [
+                Clarify(string.IsNullOrWhiteSpace(clarification)
+                    ? "What room or light should I use, and what change would you like?"
+                    : clarification.Trim())
+            ];
     }
 
     /// <summary>Processes each tool call in a model response.</summary>
@@ -158,8 +163,8 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
     {
         LastToolCallCount++;
         var arguments = toolCall.FunctionArguments.ToString();
-        _conversationLog.Append("Tool call: ").Append(toolCall.FunctionName).AppendLine().Append(arguments)
-            .AppendLine().AppendLine();
+        _conversationLog.Append("Tool call: ").Append(toolCall.FunctionName).AppendLine().Append(arguments).AppendLine()
+            .AppendLine();
 
         if (toolCall.FunctionName == "lookup_resources")
         {
