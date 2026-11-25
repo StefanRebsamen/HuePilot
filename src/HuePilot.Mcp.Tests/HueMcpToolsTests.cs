@@ -7,13 +7,13 @@ namespace HuePilot.Tests;
 
 public sealed class HueMcpToolsTests
 {
-    private static readonly HueResource Desk = new("light-desk", "Desk", HueResourceTypes.Light,
-        [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)]);
+    private static readonly HueResource Desk = new("light-desk", "Desk", HueResourceType.Light,
+        [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]);
 
-    private static readonly HueResource Office = new("room-office", "Office", HueResourceTypes.Room);
+    private static readonly HueResource Office = new("room-office", "Office", HueResourceType.Room);
 
-    private static readonly HueResource Relax = new("scene-relax", "Relax", HueResourceTypes.Scene,
-        [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)]);
+    private static readonly HueResource Relax = new("scene-relax", "Relax", HueResourceType.Scene,
+        [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]);
 
     [Fact]
     public async Task ListHueResources_ResourcesAreDiscovered_ReturnsTheirNamesTypesAndIds()
@@ -30,9 +30,17 @@ public sealed class HueMcpToolsTests
     }
 
     [Fact]
+    public async Task ListHueResources_InternalHueV2TypeIsRequested_ReturnsFilterValidationError()
+    {
+        var output = await HueMcpTools.ListHueResources("device", new FakeHueService([Desk]));
+
+        Assert.Contains("type must be all, room, zone, light, or scene", output);
+    }
+
+    [Fact]
     public async Task GetHueStatus_DiscoveredLight_ReturnsCurrentStatus()
     {
-        var hue = new FakeHueService([Desk], status: new HueStatus("light-desk", "Desk", HueResourceTypes.Light, true, 40, 0.3127, 0.3290));
+        var hue = new FakeHueService([Desk], status: new HueStatus("light-desk", "Desk", HueResourceType.Light, true, 40, 0.3127, 0.3290));
 
         var output = await HueMcpTools.GetHueStatus("light-desk", hue);
 
@@ -80,7 +88,7 @@ public sealed class HueMcpToolsTests
     [Fact]
     public async Task SetHuePower_TargetIsZone_ExecutesPowerAction()
     {
-        var zone = new HueResource("zone-upstairs", "Upstairs", HueResourceTypes.Zone);
+        var zone = new HueResource("zone-upstairs", "Upstairs", HueResourceType.Zone);
         var hue = new FakeHueService([zone]);
 
         var output = await HueMcpTools.SetHuePower("zone-upstairs", true, hue);
@@ -114,7 +122,7 @@ public sealed class HueMcpToolsTests
     [Fact]
     public async Task ActivateHueScene_RoomDoesNotMatchSceneAssociation_DoesNotExecuteAction()
     {
-        var hue = new FakeHueService([Relax, new HueResource("room-kitchen", "Kitchen", HueResourceTypes.Room)]);
+        var hue = new FakeHueService([Relax, new HueResource("room-kitchen", "Kitchen", HueResourceType.Room)]);
 
         var mismatch = await HueMcpTools.ActivateHueScene("scene-relax", "room-kitchen", hue);
         var match = await HueMcpTools.ActivateHueScene("scene-relax", "room-office", hue);

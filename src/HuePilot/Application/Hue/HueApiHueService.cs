@@ -39,7 +39,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         }
 
         var api = CreateApi();
-        if (resource.Type.Equals(HueResourceTypes.Light, StringComparison.OrdinalIgnoreCase))
+        if (resource.Type == HueResourceType.Light)
         {
             var light = (await api.Light.GetAllAsync()).Data.Single(x => x.Id == resourceId);
             var brightness = light.Dimming?.Brightness;
@@ -48,8 +48,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
                 brightness is null ? null : (int)Math.Round(brightness.Value), xy?.X, xy?.Y);
         }
 
-        if (resource.Type.Equals(HueResourceTypes.Room, StringComparison.OrdinalIgnoreCase) ||
-            resource.Type.Equals(HueResourceTypes.Zone, StringComparison.OrdinalIgnoreCase))
+        if (resource.Type is HueResourceType.Room or HueResourceType.Zone)
         {
             var groupedLightId = await FindGroupedLightIdAsync(api, resourceId, resource.Type, cancellationToken);
             if (groupedLightId is null)
@@ -73,8 +72,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         var api = CreateApi();
         var resources = await GetResourcesAsync(cancellationToken);
         var current = resources.SingleOrDefault(x => x.Id == action.Target.Id &&
-                                                     x.Type.Equals(action.Target.Type,
-                                                         StringComparison.OrdinalIgnoreCase));
+                                                     x.Type == action.Target.Type);
         if (current is null)
         {
             throw new InvalidOperationException("That Hue resource is no longer available. Please try again.");
@@ -88,7 +86,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         switch (action.Operation)
         {
             case HueOperation.ActivateScene:
-                if (current.Type != HueResourceTypes.Scene)
+                if (current.Type != HueResourceType.Scene)
                 {
                     throw new InvalidOperationException("Only an existing scene can be activated.");
                 }
@@ -100,13 +98,13 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
             case HueOperation.TurnOff:
             case HueOperation.SetBrightness:
             case HueOperation.SetColor:
-                if (current.Type == HueResourceTypes.Light)
+                if (current.Type == HueResourceType.Light)
                 {
                     await api.Light.UpdateAsync(resourceId, BuildLightUpdate(action));
                     break;
                 }
 
-                if (current.Type == HueResourceTypes.Room || current.Type == HueResourceTypes.Zone)
+                if (current.Type is HueResourceType.Room or HueResourceType.Zone)
                 {
                     var groupedLightId = await FindGroupedLightIdAsync(
                         api, resourceId, current.Type, cancellationToken);
@@ -138,17 +136,17 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         return new LocalHueApi(_bridgeIp, _applicationKey);
     }
 
-    private static async Task<Guid?> FindGroupedLightIdAsync(LocalHueApi api, Guid groupId, string groupType,
+    private static async Task<Guid?> FindGroupedLightIdAsync(LocalHueApi api, Guid groupId, HueResourceType groupType,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<ResourceIdentifier>? groupedServices;
-        if (groupType.Equals(HueResourceTypes.Room, StringComparison.OrdinalIgnoreCase))
+        if (groupType == HueResourceType.Room)
         {
             var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == groupId);
             groupedServices = room.GroupedServices;
 
             var configuredId = groupedServices.FirstOrDefault(x =>
-                x.Rtype.Equals(HueResourceTypes.GroupedLight, StringComparison.OrdinalIgnoreCase))?.Rid;
+                x.Rtype.Equals(HueResourceType.GroupedLight.ToHueV2WireType(), StringComparison.OrdinalIgnoreCase))?.Rid;
             if (configuredId is not null)
             {
                 return configuredId;

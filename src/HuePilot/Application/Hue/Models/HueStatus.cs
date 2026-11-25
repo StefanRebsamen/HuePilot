@@ -4,7 +4,7 @@ namespace HuePilot.Application.Hue.Models;
 public sealed record HueStatus(
     string ResourceId,
     string ResourceName,
-    string ResourceType,
+    HueResourceType ResourceType,
     bool IsOn,
     int? BrightnessPercent = null,
     double? ColorX = null,

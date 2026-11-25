@@ -5,14 +5,14 @@ namespace HuePilot.Tests;
 
 public sealed class HueActionValidatorTests
 {
-    private static readonly HueResource Office = new("room-1", "Office", "room");
+    private static readonly HueResource Office = new("room-1", "Office", HueResourceType.Room);
 
     [Theory]
     [InlineData(0)]
     [InlineData(101)]
     public void TryCreate_BrightnessIsOutsideAllowedRange_ReturnsValidationError(int brightness)
     {
-        var intent = new HueIntent(HueOperation.SetBrightness, "Office", "room", brightness);
+        var intent = new SetBrightnessIntent("Office", HueResourceType.Room, brightness);
 
         Assert.False(HueActionValidator.TryCreate(intent, Office, out _, out var error));
         Assert.Contains("1 to 100", error);
@@ -21,7 +21,7 @@ public sealed class HueActionValidatorTests
     [Fact]
     public void TryCreate_ColorIsUnsupported_ReturnsValidationError()
     {
-        var intent = new HueIntent(HueOperation.SetColor, "Office", "room", Color: "ultraviolet");
+        var intent = new SetColorIntent("Office", HueResourceType.Room, "ultraviolet");
 
         Assert.False(HueActionValidator.TryCreate(intent, Office, out _, out var error));
         Assert.Contains("named color", error);
@@ -30,8 +30,8 @@ public sealed class HueActionValidatorTests
     [Fact]
     public void TryCreate_ListResources_SkipsResourceTypeValidation()
     {
-        var unsupportedResource = new HueResource("device-1", "Bridge", "device");
-        var intent = new HueIntent(HueOperation.ListResources, "Bridge", "device");
+        var unsupportedResource = new HueResource("device-1", "Bridge", HueResourceType.Device);
+        var intent = new ListResourcesIntent("Bridge", HueResourceType.Light);
 
         Assert.True(HueActionValidator.TryCreate(intent, unsupportedResource, out var action, out var error));
         Assert.Equal(HueOperation.ListResources, action?.Operation);

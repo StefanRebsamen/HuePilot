@@ -34,7 +34,8 @@ public static class HueMcpTools
             throw new InvalidOperationException("Hue service is unavailable.");
         }
 
-        if (type is not ("all" or HueResourceTypes.Room or HueResourceTypes.Zone or HueResourceTypes.Light or HueResourceTypes.Scene))
+        if (type != "all" && (!HueResourceTypeExtensions.TryParseHueV2WireType(type, out var resourceType) ||
+                              resourceType is HueResourceType.Device or HueResourceType.GroupedLight))
         {
             return "Not applied: type must be all, room, zone, light, or scene.";
         }
@@ -43,7 +44,7 @@ public static class HueMcpTools
         {
             var resources = await hueService.GetResourcesAsync(cancellationToken);
             var selected = resources
-                .Where(resource => type == "all" || resource.Type.Equals(type, StringComparison.OrdinalIgnoreCase))
+                .Where(resource => type == "all" || resource.Type.ToHueV2WireType().Equals(type, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(resource => resource.Type).ThenBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(resource => new
                 {
@@ -81,7 +82,7 @@ public static class HueMcpTools
                 return "That ID is not a currently discovered Hue resource. List resources and try again.";
             }
 
-            if (target.Type is not (HueResourceTypes.Light or HueResourceTypes.Room or HueResourceTypes.Zone))
+            if (target.Type is not (HueResourceType.Light or HueResourceType.Room or HueResourceType.Zone))
             {
                 return $"Hue status cannot be reported for a {target.Type}.";
             }
@@ -110,7 +111,7 @@ public static class HueMcpTools
         CancellationToken cancellationToken = default)
     {
         return ApplyAsync(resourceId, on ? HueOperation.TurnOn : HueOperation.TurnOff, null, null, null,
-            [HueResourceTypes.Light, HueResourceTypes.Room, HueResourceTypes.Zone], hueService, cancellationToken);
+            [HueResourceType.Light, HueResourceType.Room, HueResourceType.Zone], hueService, cancellationToken);
     }
 
     /// <summary>Sets brightness on one currently discovered light or room.</summary>
@@ -128,7 +129,7 @@ public static class HueMcpTools
         IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
         return ApplyAsync(resourceId, HueOperation.SetBrightness, brightnessPercent, null, null,
-            [HueResourceTypes.Light, HueResourceTypes.Room, HueResourceTypes.Zone], hueService, cancellationToken);
+            [HueResourceType.Light, HueResourceType.Room, HueResourceType.Zone], hueService, cancellationToken);
     }
 
     /// <summary>Sets a supported named color on one currently discovered light or room.</summary>
@@ -147,7 +148,7 @@ public static class HueMcpTools
         string color, IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
         return ApplyAsync(resourceId, HueOperation.SetColor, null, color, null,
-            [HueResourceTypes.Light, HueResourceTypes.Room, HueResourceTypes.Zone], hueService,
+            [HueResourceType.Light, HueResourceType.Room, HueResourceType.Zone], hueService,
             cancellationToken);
     }
 
@@ -166,12 +167,12 @@ public static class HueMcpTools
             "Optional exact room ID from list_hue_resources. If supplied, the scene must be associated with this room.")]
         string? roomId = null, IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
-        return ApplyAsync(sceneId, HueOperation.ActivateScene, null, null, roomId, [HueResourceTypes.Scene], hueService,
+        return ApplyAsync(sceneId, HueOperation.ActivateScene, null, null, roomId, [HueResourceType.Scene], hueService,
             cancellationToken);
     }
 
     private static async Task<string> ApplyAsync(string resourceId, HueOperation operation, int? brightnessPercent,
-        string? color, string? requiredRoomId, string[] allowedTypes, IHueService? hueService,
+        string? color, string? requiredRoomId, HueResourceType[] allowedTypes, IHueService? hueService,
         CancellationToken cancellationToken)
     {
         if (hueService is null)
@@ -196,9 +197,9 @@ public static class HueMcpTools
             }
 
             var target = matches[0];
-            if (!allowedTypes.Contains(target.Type, StringComparer.OrdinalIgnoreCase))
+            if (!allowedTypes.Contains(target.Type))
             {
-                return $"Not applied: {operation} cannot be used on a {target.Type}.";
+                return $"Not applied: {operation} cannot be used on a {target.Type.ToHueV2WireType()}.";
             }
 
             if (!string.IsNullOrWhiteSpace(requiredRoomId) && !(target.Groups ?? []).Any(group =>
@@ -209,7 +210,17 @@ public static class HueMcpTools
             }
 
             // Keep MCP writes on the same validation path as chat and tool-calling proposals.
-            var intent = new HueIntent(operation, target.Name, target.Type, brightnessPercent, color);
+            var targetType = target.Type;
+
+            HueIntent intent = operation switch
+            {
+                HueOperation.TurnOn => new TurnOnIntent(target.Name, targetType),
+                HueOperation.TurnOff => new TurnOffIntent(target.Name, targetType),
+                HueOperation.SetBrightness => new SetBrightnessIntent(target.Name, targetType, brightnessPercent),
+                HueOperation.SetColor => new SetColorIntent(target.Name, targetType, color),
+                HueOperation.ActivateScene => new ActivateSceneIntent(target.Name, targetType),
+                _ => throw new InvalidOperationException("That Hue operation is not allowed.")
+            };
             if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))
             {
                 return $"Not applied: {validationError}";

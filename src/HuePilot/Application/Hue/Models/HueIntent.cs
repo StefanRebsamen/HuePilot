@@ -4,30 +4,52 @@ namespace HuePilot.Application.Hue.Models;
 /// A model-produced interpretation of a user's request. It is untrusted until a discovered resource is resolved
 /// and its operation and arguments are validated by the application.
 /// </summary>
-/// <param name="Operation">The requested operation, or <see langword="null" /> when it is unclear.</param>
-/// <param name="TargetName">The discovered room, zone, light, or scene name.</param>
-/// <param name="TargetType">
-/// The model-supplied resource kind: room, zone, light, or scene. This remains a string because it is untrusted
-/// provider input; resolved application resources use <see cref="HueResourceTypes" /> constants instead.
-/// </param>
-/// <param name="BrightnessPercent">Brightness from 1 through 100 for a brightness operation.</param>
-/// <param name="Color">A supported named color for a color operation.</param>
-/// <param name="TargetGroupName">Optional room or zone used to disambiguate an associated light or scene.</param>
-/// <param name="TargetGroupType">
-/// Optional model-supplied kind of the requested group, such as room or zone. It is validated against discovered
-/// resources before use.
-/// </param>
-/// <param name="ClarificationQuestion">A follow-up question when the model cannot safely infer one action.</param>
-public sealed record HueIntent(
-    HueOperation? Operation,
+public abstract record HueIntent(
     string? TargetName,
-    string? TargetType,
-    int? BrightnessPercent = null,
-    string? Color = null,
+    HueResourceType? TargetType,
     string? TargetGroupName = null,
-    string? TargetGroupType = null,
-    string? ClarificationQuestion = null)
+    HueResourceType? TargetGroupType = null)
 {
+    /// <summary>Gets a follow-up question when the model cannot safely infer one action.</summary>
+    public virtual string? ClarificationQuestion => null;
+
     /// <summary>Gets whether the model asked the user to clarify the request.</summary>
     public bool NeedsClarification => !string.IsNullOrWhiteSpace(ClarificationQuestion);
 }
+
+/// <summary>Requests user input before a Hue action can be safely proposed.</summary>
+public sealed record ClarificationIntent(string Question) : HueIntent(null, null)
+{
+    /// <inheritdoc />
+    public override string ClarificationQuestion => Question;
+}
+
+/// <summary>Turns a discovered light, room, or zone on.</summary>
+public sealed record TurnOnIntent(string TargetName, HueResourceType? TargetType, string? TargetGroupName = null,
+    HueResourceType? TargetGroupType = null) : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);
+
+/// <summary>Turns a discovered light, room, or zone off.</summary>
+public sealed record TurnOffIntent(string TargetName, HueResourceType? TargetType, string? TargetGroupName = null,
+    HueResourceType? TargetGroupType = null) : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);
+
+/// <summary>Sets the brightness of a discovered light, room, or zone.</summary>
+public sealed record SetBrightnessIntent(string TargetName, HueResourceType? TargetType, int? BrightnessPercent,
+    string? TargetGroupName = null, HueResourceType? TargetGroupType = null)
+    : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);
+
+/// <summary>Sets a named color on a discovered light, room, or zone.</summary>
+public sealed record SetColorIntent(string TargetName, HueResourceType? TargetType, string? Color,
+    string? TargetGroupName = null, HueResourceType? TargetGroupType = null)
+    : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);
+
+/// <summary>Activates a discovered Hue scene.</summary>
+public sealed record ActivateSceneIntent(string TargetName, HueResourceType? TargetType, string? TargetGroupName = null,
+    HueResourceType? TargetGroupType = null) : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);
+
+/// <summary>Requests the current state of a discovered light, room, or zone.</summary>
+public sealed record GetStatusIntent(string TargetName, HueResourceType? TargetType, string? TargetGroupName = null,
+    HueResourceType? TargetGroupType = null) : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);
+
+/// <summary>Requests matching resources from the discovered Hue catalog.</summary>
+public sealed record ListResourcesIntent(string? TargetName, HueResourceType? TargetType, string? TargetGroupName = null,
+    HueResourceType? TargetGroupType = null) : HueIntent(TargetName, TargetType, TargetGroupName, TargetGroupType);

@@ -92,18 +92,85 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration)
         using var document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty("intents", out var intentsElement))
         {
-            var singleIntent = JsonSerializer.Deserialize<HueIntent>(json, jsonOptions) ??
+            var singleIntent = JsonSerializer.Deserialize<IntentProposal>(json, jsonOptions) ??
                                throw new InvalidOperationException("The AI provider returned an invalid intent.");
-            return [singleIntent];
+            return [CreateIntent(singleIntent)];
         }
 
-        var intents = JsonSerializer.Deserialize<List<HueIntent>>(intentsElement.GetRawText(), jsonOptions) ??
+        var intents = JsonSerializer.Deserialize<List<IntentProposal>>(intentsElement.GetRawText(), jsonOptions) ??
                       throw new InvalidOperationException("The AI provider returned an invalid intent list.");
         if (intents.Count == 0)
         {
             throw new InvalidOperationException("The AI provider returned no intents.");
         }
 
-        return intents;
+        return intents.Select(CreateIntent).ToArray();
     }
+
+    private static HueIntent CreateIntent(IntentProposal proposal)
+    {
+        if (!string.IsNullOrWhiteSpace(proposal.ClarificationQuestion) || proposal.Operation is null)
+        {
+            return new ClarificationIntent(proposal.ClarificationQuestion ??
+                "I couldn't determine the requested action. Could you rephrase it?");
+        }
+
+        if (!HueResourceTypeExtensions.TryParseHueV2WireType(proposal.TargetType, out var targetType))
+        {
+            return new ClarificationIntent("I couldn't determine the requested resource type. Could you rephrase it?");
+        }
+
+        if (!TryParseOptionalResourceType(proposal.TargetGroupType, out var targetGroupType))
+        {
+            return new ClarificationIntent("I couldn't determine the requested room or zone type. Could you rephrase it?");
+        }
+
+        var targetName = proposal.TargetName ?? "";
+        return proposal.Operation.Value switch
+        {
+            HueOperation.TurnOn => new TurnOnIntent(targetName, targetType, proposal.TargetGroupName,
+                targetGroupType),
+            HueOperation.TurnOff => new TurnOffIntent(targetName, targetType, proposal.TargetGroupName,
+                targetGroupType),
+            HueOperation.SetBrightness => new SetBrightnessIntent(targetName, targetType, proposal.BrightnessPercent,
+                proposal.TargetGroupName, targetGroupType),
+            HueOperation.SetColor => new SetColorIntent(targetName, targetType, proposal.Color,
+                proposal.TargetGroupName, targetGroupType),
+            HueOperation.ActivateScene => new ActivateSceneIntent(targetName, targetType, proposal.TargetGroupName,
+                targetGroupType),
+            HueOperation.GetStatus => new GetStatusIntent(targetName, targetType, proposal.TargetGroupName,
+                targetGroupType),
+            HueOperation.ListResources => new ListResourcesIntent(proposal.TargetName, targetType,
+                proposal.TargetGroupName, targetGroupType),
+            _ => new ClarificationIntent("I couldn't determine the requested action. Could you rephrase it?")
+        };
+    }
+
+    private static bool TryParseOptionalResourceType(string? identifier, out HueResourceType? type)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            type = null;
+            return true;
+        }
+
+        if (HueResourceTypeExtensions.TryParseHueV2WireType(identifier, out var parsedType))
+        {
+            type = parsedType;
+            return true;
+        }
+
+        type = null;
+        return false;
+    }
+
+    private sealed record IntentProposal(
+        HueOperation? Operation,
+        string? TargetName,
+        string? TargetType,
+        int? BrightnessPercent,
+        string? Color,
+        string? TargetGroupName,
+        string? TargetGroupType,
+        string? ClarificationQuestion);
 }

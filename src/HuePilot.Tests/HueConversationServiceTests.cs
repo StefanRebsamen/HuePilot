@@ -7,7 +7,7 @@ namespace HuePilot.Tests;
 
 public sealed class HueConversationServiceTests
 {
-    private static readonly HueResource Office = new("room-1", "Office", "room");
+    private static readonly HueResource Office = new("room-1", "Office", HueResourceType.Room);
 
     [Fact]
     public async Task PlanAsync_RequestIsClear_ReturnsValidatedActionWithoutExecutingIt()
@@ -15,7 +15,7 @@ public sealed class HueConversationServiceTests
         var hue = new FakeHueService([Office]);
         var service =
             new HueConversationService(
-                new FakeIntentParser(new HueIntent(HueOperation.SetBrightness, "Office", "room", 65)), hue);
+                new FakeIntentParser(new SetBrightnessIntent("Office", HueResourceType.Room, 65)), hue);
 
         var result = await service.PlanAsync("Set the office to 65 percent", []);
 
@@ -33,7 +33,7 @@ public sealed class HueConversationServiceTests
         var hue = new FakeHueService([Office]);
         var service =
             new HueConversationService(
-                new FakeIntentParser(new HueIntent(null, null, null, ClarificationQuestion: "Which room?")), hue);
+                new FakeIntentParser(new ClarificationIntent("Which room?")), hue);
 
         var result = await service.PlanAsync("Turn on the lights", []);
 
@@ -45,13 +45,13 @@ public sealed class HueConversationServiceTests
     [Fact]
     public async Task PlanAsync_RequestListsLightsInRoom_ReturnsAssociatedLights()
     {
-        var office = new HueResourceGroup("room-1", "Office", "room");
-        var desk = new HueResource("light-1", "Desk lamp", "light", [office]);
-        var ceiling = new HueResource("light-2", "Ceiling light", "light", [office]);
+        var office = new HueResourceGroup("room-1", "Office", HueResourceType.Room);
+        var desk = new HueResource("light-1", "Desk lamp", HueResourceType.Light, [office]);
+        var ceiling = new HueResource("light-2", "Ceiling light", HueResourceType.Light, [office]);
         var hue = new FakeHueService([Office, desk, ceiling]);
         var service =
             new HueConversationService(
-                new FakeIntentParser(new HueIntent(HueOperation.ListResources, "Office", "light")), hue);
+                new FakeIntentParser(new ListResourcesIntent("Office", HueResourceType.Light)), hue);
 
         var result = await service.PlanAsync("What lamps are in the office?", []);
 
@@ -63,10 +63,10 @@ public sealed class HueConversationServiceTests
     [Fact]
     public async Task PlanAsync_RequestTargetsZone_ReturnsZoneAction()
     {
-        var zone = new HueResource("zone-upstairs", "Upstairs", "zone");
+        var zone = new HueResource("zone-upstairs", "Upstairs", HueResourceType.Zone);
         var hue = new FakeHueService([zone]);
         var service = new HueConversationService(
-            new FakeIntentParser(new HueIntent(HueOperation.TurnOn, "Upstairs", "zone")), hue);
+            new FakeIntentParser(new TurnOnIntent("Upstairs", HueResourceType.Zone)), hue);
 
         var result = await service.PlanAsync("Turn on upstairs", []);
 
@@ -77,11 +77,11 @@ public sealed class HueConversationServiceTests
     [Fact]
     public async Task PlanAsync_ParserReturnsMultipleIntents_ReturnsActionForEachIntent()
     {
-        var desk = new HueResource("light-desk", "Desk", "light");
-        var ceiling = new HueResource("light-ceiling", "Ceiling", "light");
+        var desk = new HueResource("light-desk", "Desk", HueResourceType.Light);
+        var ceiling = new HueResource("light-ceiling", "Ceiling", HueResourceType.Light);
         var hue = new FakeHueService([desk, ceiling]);
-        var parser = new FakeIntentParser(new HueIntent(HueOperation.TurnOn, "Desk", "light"),
-            new HueIntent(HueOperation.TurnOn, "Ceiling", "light"));
+        var parser = new FakeIntentParser(new TurnOnIntent("Desk", HueResourceType.Light),
+            new TurnOnIntent("Ceiling", HueResourceType.Light));
         var service = new HueConversationService(parser, hue);
 
         var result = await service.PlanAsync("Turn on Desk and Ceiling", []);
@@ -95,14 +95,14 @@ public sealed class HueConversationServiceTests
     [Fact]
     public async Task PlanAsync_MultipleGroupedLightsAreRequested_ReturnsActionForEachNamedLight()
     {
-        var office = new HueResourceGroup("room-office", "Office", "room");
-        var desk = new HueResource("light-desk", "Desk", "light", [office]);
-        var pinboard = new HueResource("light-pinboard", "Pinboard", "light", [office]);
+        var office = new HueResourceGroup("room-office", "Office", HueResourceType.Room);
+        var desk = new HueResource("light-desk", "Desk", HueResourceType.Light, [office]);
+        var pinboard = new HueResource("light-pinboard", "Pinboard", HueResourceType.Light, [office]);
         var hue = new FakeHueService([desk, pinboard]);
         var parser = new FakeIntentParser(
-            new HueIntent(HueOperation.TurnOn, "Desk", "light", TargetGroupName: "Office", TargetGroupType: "room"),
-            new HueIntent(HueOperation.TurnOn, "Pinboard", "light", TargetGroupName: "Office",
-                TargetGroupType: "room"));
+            new TurnOnIntent("Desk", HueResourceType.Light, TargetGroupName: "Office", TargetGroupType: HueResourceType.Room),
+            new TurnOnIntent("Pinboard", HueResourceType.Light, TargetGroupName: "Office",
+                TargetGroupType: HueResourceType.Room));
         var service = new HueConversationService(parser, hue);
 
         var result = await service.PlanAsync("Turn on Desk and Pinboard", []);
@@ -117,7 +117,7 @@ public sealed class HueConversationServiceTests
     {
         var hue = new FakeHueService([Office]);
         var service =
-            new HueConversationService(new FakeIntentParser(new HueIntent(HueOperation.TurnOff, "Kitchen", "room")),
+            new HueConversationService(new FakeIntentParser(new TurnOffIntent("Kitchen", HueResourceType.Room)),
                 hue);
 
         var result = await service.PlanAsync("Turn off kitchen", []);
@@ -129,9 +129,9 @@ public sealed class HueConversationServiceTests
     [Fact]
     public async Task PlanAsync_TargetNameIsDuplicated_ReturnsClarificationWithoutExecutingAction()
     {
-        var hue = new FakeHueService([Office, new HueResource("room-2", "Office", "room")]);
+        var hue = new FakeHueService([Office, new HueResource("room-2", "Office", HueResourceType.Room)]);
         var service =
-            new HueConversationService(new FakeIntentParser(new HueIntent(HueOperation.TurnOn, "Office", "room")), hue);
+            new HueConversationService(new FakeIntentParser(new TurnOnIntent("Office", HueResourceType.Room)), hue);
 
         var result = await service.PlanAsync("Turn on the office", []);
 
@@ -143,15 +143,15 @@ public sealed class HueConversationServiceTests
     [Fact]
     public async Task PlanAsync_SceneNameIsDuplicatedAndRoomIsSpecified_ReturnsAssociatedSceneAction()
     {
-        var bedroom = new HueResourceGroup("room-bedroom", "Bedroom", "room");
-        var kitchen = new HueResourceGroup("room-kitchen", "Kitchen", "room");
+        var bedroom = new HueResourceGroup("room-bedroom", "Bedroom", HueResourceType.Room);
+        var kitchen = new HueResourceGroup("room-kitchen", "Kitchen", HueResourceType.Room);
         var scenes = new HueResource[]
         {
-            new("scene-bedroom", "Relax", "scene", [bedroom]), new("scene-kitchen", "Relax", "scene", [kitchen])
+            new("scene-bedroom", "Relax", HueResourceType.Scene, [bedroom]), new("scene-kitchen", "Relax", HueResourceType.Scene, [kitchen])
         };
         var hue = new FakeHueService(scenes);
-        var parser = new FakeIntentParser(new HueIntent(HueOperation.ActivateScene, "Relax", "scene",
-            TargetGroupName: "Bedroom", TargetGroupType: "room"));
+        var parser = new FakeIntentParser(new ActivateSceneIntent("Relax", HueResourceType.Scene,
+            TargetGroupName: "Bedroom", TargetGroupType: HueResourceType.Room));
         var service = new HueConversationService(parser, hue);
 
         var result = await service.PlanAsync("Activate Relax in the Bedroom", []);
@@ -165,14 +165,14 @@ public sealed class HueConversationServiceTests
     public async Task PlanAsync_SceneNameIsDuplicatedWithoutRoom_ReturnsAvailableRoomClarification()
     {
         var hue = new FakeHueService([
-            new HueResource("scene-bedroom", "Relax", "scene",
-                [new HueResourceGroup("room-bedroom", "Bedroom", "room")]),
-            new HueResource("scene-kitchen", "Relax", "scene",
-                [new HueResourceGroup("room-kitchen", "Kitchen", "room")])
+            new HueResource("scene-bedroom", "Relax", HueResourceType.Scene,
+                [new HueResourceGroup("room-bedroom", "Bedroom", HueResourceType.Room)]),
+            new HueResource("scene-kitchen", "Relax", HueResourceType.Scene,
+                [new HueResourceGroup("room-kitchen", "Kitchen", HueResourceType.Room)])
         ]);
         var service =
             new HueConversationService(
-                new FakeIntentParser(new HueIntent(HueOperation.ActivateScene, "Relax", "scene")), hue);
+                new FakeIntentParser(new ActivateSceneIntent("Relax", HueResourceType.Scene)), hue);
 
         var result = await service.PlanAsync("Activate Relax", []);
 
@@ -186,12 +186,12 @@ public sealed class HueConversationServiceTests
     public async Task PlanAsync_SceneIsNotAssociatedWithRequestedRoom_ReturnsClarification()
     {
         var hue = new FakeHueService([
-            new HueResource("scene-bedroom", "Relax", "scene",
-                [new HueResourceGroup("room-bedroom", "Bedroom", "room")])
+            new HueResource("scene-bedroom", "Relax", HueResourceType.Scene,
+                [new HueResourceGroup("room-bedroom", "Bedroom", HueResourceType.Room)])
         ]);
         var service = new HueConversationService(
-            new FakeIntentParser(new HueIntent(HueOperation.ActivateScene, "Relax", "scene", TargetGroupName: "Kitchen",
-                TargetGroupType: "room")), hue);
+            new FakeIntentParser(new ActivateSceneIntent("Relax", HueResourceType.Scene, TargetGroupName: "Kitchen",
+                TargetGroupType: HueResourceType.Room)), hue);
 
         var result = await service.PlanAsync("Activate Relax in the Kitchen", []);
 
@@ -204,14 +204,14 @@ public sealed class HueConversationServiceTests
     public async Task PlanAsync_RequestNamesMultipleGroups_ReturnsClarificationWithoutExecutingAction()
     {
         var hue = new FakeHueService([
-            new HueResource("scene-bedroom", "Relax", "scene",
-                [new HueResourceGroup("room-bedroom", "Bedroom", "room")]),
-            new HueResource("scene-kitchen", "Relax", "scene",
-                [new HueResourceGroup("room-kitchen", "Kitchen", "room")])
+            new HueResource("scene-bedroom", "Relax", HueResourceType.Scene,
+                [new HueResourceGroup("room-bedroom", "Bedroom", HueResourceType.Room)]),
+            new HueResource("scene-kitchen", "Relax", HueResourceType.Scene,
+                [new HueResourceGroup("room-kitchen", "Kitchen", HueResourceType.Room)])
         ]);
         var service =
                 new HueConversationService(
-            new FakeIntentParser(new HueIntent(HueOperation.ActivateScene, "Relax", "scene")), hue);
+                new FakeIntentParser(new ActivateSceneIntent("Relax", HueResourceType.Scene)), hue);
 
         var result = await service.PlanAsync("Activate Relax in Bedroom and Kitchen", []);
 

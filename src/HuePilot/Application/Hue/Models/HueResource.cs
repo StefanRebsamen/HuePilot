@@ -5,4 +5,4 @@ namespace HuePilot.Application.Hue.Models;
 /// <param name="Name">The user-visible name.</param>
 /// <param name="Type">The resource kind: room, zone, light, or scene.</param>
 /// <param name="Groups">Rooms or zones associated with this resource.</param>
-public sealed record HueResource(string Id, string Name, string Type, IReadOnlyList<HueResourceGroup>? Groups = null);
+public sealed record HueResource(string Id, string Name, HueResourceType Type, IReadOnlyList<HueResourceGroup>? Groups = null);

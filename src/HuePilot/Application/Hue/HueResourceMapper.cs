@@ -35,14 +35,14 @@ public static class HueResourceMapper
         var deviceById = devices.ToDictionary(device => device.Id);
         var groupsById = roomList
             .Select(room => new HueResourceGroup(room.Id.ToString(), Name(room.Metadata?.Name, "Unnamed room"),
-                HueResourceTypes.Room))
+                HueResourceType.Room))
             .Concat(zoneList.Select(zone => new HueResourceGroup(zone.Id.ToString(),
-                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceTypes.Zone)))
+                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceType.Zone)))
             .ToDictionary(group => Guid.Parse(group.Id));
 
         var lightGroups = new Dictionary<Guid, List<HueResourceGroup>>();
-        AddMembership(roomList.Select(room => (room.Id, room.Children)), HueResourceTypes.Room);
-        AddMembership(zoneList.Select(zone => (zone.Id, zone.Children)), HueResourceTypes.Zone);
+        AddMembership(roomList.Select(room => (room.Id, room.Children)), HueResourceType.Room);
+        AddMembership(zoneList.Select(zone => (zone.Id, zone.Children)), HueResourceType.Zone);
 
         // A scene's group is its activation target; retaining it lets the UI and AI distinguish
         // same-named scenes that control different rooms or zones.
@@ -54,17 +54,17 @@ public static class HueResourceMapper
         return
         [
             .. lights.Select(light => new AppHueResource(light.Id.ToString(),
-                Name(light.Metadata?.Name, "Unnamed light"), HueResourceTypes.Light,
+                Name(light.Metadata?.Name, "Unnamed light"), HueResourceType.Light,
                 lightGroups.TryGetValue(light.Id, out var memberships) ? memberships : [])),
             .. roomList.Select(room => new AppHueResource(room.Id.ToString(),
-                Name(room.Metadata?.Name, "Unnamed room"), HueResourceTypes.Room)),
+                Name(room.Metadata?.Name, "Unnamed room"), HueResourceType.Room)),
             .. zoneList.Select(zone => new AppHueResource(zone.Id.ToString(),
-                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceTypes.Zone)),
+                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceType.Zone)),
             .. scenes.Select(scene => new AppHueResource(scene.Id.ToString(),
-                Name(scene.Metadata?.Name, "Unnamed scene"), HueResourceTypes.Scene, sceneGroups[scene.Id]))
+                Name(scene.Metadata?.Name, "Unnamed scene"), HueResourceType.Scene, sceneGroups[scene.Id]))
         ];
 
-        void AddMembership(IEnumerable<(Guid Id, List<ResourceIdentifier> Children)> groupChildren, string groupType)
+        void AddMembership(IEnumerable<(Guid Id, List<ResourceIdentifier> Children)> groupChildren, HueResourceType groupType)
         {
             foreach (var (groupId, children) in groupChildren)
             {
@@ -75,17 +75,17 @@ public static class HueResourceMapper
 
                 foreach (var child in children)
                 {
-                    if (child.Rtype == HueResourceTypes.Light)
+                    if (child.Rtype == HueResourceType.Light.ToHueV2WireType())
                     {
                         AddLightGroup(child.Rid, group);
                     }
-                    else if (child.Rtype == HueResourceTypes.Device &&
+                    else if (child.Rtype == HueResourceType.Device.ToHueV2WireType() &&
                              deviceById.TryGetValue(child.Rid, out var device))
                     {
                         // Rooms commonly list devices rather than light services. Follow the
                         // device's service links to attach the group to the controllable light.
                         foreach (var service in (device.Services ?? []).Where(service =>
-                                     service.Rtype == HueResourceTypes.Light))
+                                     service.Rtype == HueResourceType.Light.ToHueV2WireType()))
                         {
                             AddLightGroup(service.Rid, group);
                         }

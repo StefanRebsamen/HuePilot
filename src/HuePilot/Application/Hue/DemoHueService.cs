@@ -7,16 +7,16 @@ public sealed class DemoHueService : IHueService
 {
     private readonly IReadOnlyList<HueResource> _resources =
     [
-        new("room-office", "Office", HueResourceTypes.Room),
-        new("zone-upstairs", "Upstairs", HueResourceTypes.Zone),
-        new("light-desk", "Desk lamp", HueResourceTypes.Light,
-            [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)]),
-        new("light-ceiling", "Ceiling light", HueResourceTypes.Light,
-            [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)]),
-        new("scene-focus", "Focus", HueResourceTypes.Scene,
-            [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)]),
-        new("scene-relax", "Relax", HueResourceTypes.Scene,
-            [new HueResourceGroup("room-office", "Office", HueResourceTypes.Room)])
+        new("room-office", "Office", HueResourceType.Room),
+        new("zone-upstairs", "Upstairs", HueResourceType.Zone),
+        new("light-desk", "Desk lamp", HueResourceType.Light,
+            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]),
+        new("light-ceiling", "Ceiling light", HueResourceType.Light,
+            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]),
+        new("scene-focus", "Focus", HueResourceType.Scene,
+            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]),
+        new("scene-relax", "Relax", HueResourceType.Scene,
+            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)])
     ];
 
     /// <inheritdoc />

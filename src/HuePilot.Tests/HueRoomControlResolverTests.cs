@@ -1,5 +1,6 @@
 using HueApi.Models;
 using HuePilot.Application.Hue;
+using HuePilot.Application.Hue.Models;
 using ApiGroupedLight = HueApi.Models.GroupedLight;
 using ApiRoom = HueApi.Models.Room;
 
@@ -56,7 +57,7 @@ public sealed class HueRoomControlResolverTests
         var groupedLightId = Guid.NewGuid();
 
         Assert.Equal(groupedLightId,
-            HueRoomControlResolver.FindGroupedLightId(zoneId, "zone",
+            HueRoomControlResolver.FindGroupedLightId(zoneId, HueResourceType.Zone,
             [
                 new ApiGroupedLight
                 {

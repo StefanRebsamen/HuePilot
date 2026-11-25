@@ -11,11 +11,11 @@ public static class HueRoomControlResolver
     /// <param name="groupId">The room or zone resource ID.</param>
     /// <param name="groupType">The owner resource type, either room or zone.</param>
     /// <param name="groupedLights">Grouped-light resources returned by the Bridge.</param>
-    public static Guid? FindGroupedLightId(Guid groupId, string groupType, IEnumerable<ApiGroupedLight> groupedLights)
+    public static Guid? FindGroupedLightId(Guid groupId, HueResourceType groupType, IEnumerable<ApiGroupedLight> groupedLights)
     {
         var matches = groupedLights
             .Where(groupedLight => groupedLight.Owner is { } owner && owner.Rid == groupId &&
-                                   owner.Rtype.Equals(groupType, StringComparison.OrdinalIgnoreCase))
+                                   owner.Rtype.Equals(groupType.ToHueV2WireType(), StringComparison.OrdinalIgnoreCase))
             .Select(groupedLight => groupedLight.Id).Distinct().ToArray();
 
         return matches.Length == 1 ? matches[0] : null;
@@ -32,6 +32,6 @@ public static class HueRoomControlResolver
     {
         // Some Bridge firmware omits room.grouped_services, but each grouped_light still names
         // its owning room. Require exactly one owner match rather than guessing.
-        return FindGroupedLightId(room.Id, HueResourceTypes.Room, groupedLights);
+        return FindGroupedLightId(room.Id, HueResourceType.Room, groupedLights);
     }
 }

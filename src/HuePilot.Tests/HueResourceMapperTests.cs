@@ -49,11 +49,11 @@ public sealed class HueResourceMapperTests
         var light = Assert.Single(resources, resource => resource.Id == lightId.ToString());
         var scene = Assert.Single(resources, resource => resource.Id == sceneId.ToString());
 
-        Assert.Contains(light.Groups!, group => group.Name == "Bedroom" && group.Type == HueResourceTypes.Room);
-        Assert.Contains(light.Groups!, group => group.Name == "Upstairs" && group.Type == HueResourceTypes.Zone);
+        Assert.Contains(light.Groups!, group => group.Name == "Bedroom" && group.Type == HueResourceType.Room);
+        Assert.Contains(light.Groups!, group => group.Name == "Upstairs" && group.Type == HueResourceType.Zone);
         Assert.Contains(scene.Groups!, group => group.Id == bedroomId.ToString() && group.Name == "Bedroom");
         Assert.Contains(resources,
             resource => resource.Id == zoneId.ToString() && resource.Name == "Upstairs" &&
-                        resource.Type == HueResourceTypes.Zone);
+                        resource.Type == HueResourceType.Zone);
     }
 }

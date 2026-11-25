@@ -10,11 +10,11 @@ public sealed class OpenAiToolCallingIntentParserTests
     [Fact]
     public void SearchResources_QueryTargetsRoomLights_ReturnsMemberLights()
     {
-        var office = new HueResourceGroup("room-office", "Office", "room");
+        var office = new HueResourceGroup("room-office", "Office", HueResourceType.Room);
         var resources = new HueResource[]
         {
-            new("room-office", "Office", "room"), new("light-desk", "Desk lamp", "light", [office]),
-            new("light-ceiling", "Ceiling light", "light", [office])
+            new("room-office", "Office", HueResourceType.Room), new("light-desk", "Desk lamp", HueResourceType.Light, [office]),
+            new("light-ceiling", "Ceiling light", HueResourceType.Light, [office])
         };
 
         var json = OpenAiToolCallingIntentParser.LookupResources(

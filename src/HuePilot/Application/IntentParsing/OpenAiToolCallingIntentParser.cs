@@ -182,7 +182,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
         }
 
         var proposal = ParseProposal(arguments, availableResources);
-        if (proposal.NeedsClarification || proposal.Operation is null)
+        if (proposal is ClarificationIntent)
         {
             return [proposal];
         }
@@ -208,7 +208,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             var normalizedQuery = NormalizeSearchText(query);
             var normalizedGroup = NormalizeSearchText(groupName);
             var knownGroups = resources.SelectMany(resource => resource.Groups ?? []).Concat(resources
-                    .Where(resource => resource.Type is HueResourceTypes.Room or HueResourceTypes.Zone)
+                    .Where(resource => resource.Type is HueResourceType.Room or HueResourceType.Zone)
                     .Select(resource => new HueResourceGroup(resource.Id, resource.Name, resource.Type)))
                 .DistinctBy(group => group.Id);
             var matchedGroups = knownGroups.Where(group =>
@@ -220,12 +220,12 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             var resolvedGroupIds = matchedGroups.Select(group => group.id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var matches = resources.Where(resource =>
-                    (type == "all" || resource.Type.Equals(type, StringComparison.OrdinalIgnoreCase)) &&
+                    (type == "all" || resource.Type.ToHueV2WireType().Equals(type, StringComparison.OrdinalIgnoreCase)) &&
                     (string.IsNullOrEmpty(normalizedQuery) || MatchesSearchText(resource.Name, normalizedQuery) ||
-                     (resource.Type.Equals(HueResourceTypes.Light, StringComparison.OrdinalIgnoreCase) &&
+                     (resource.Type == HueResourceType.Light &&
                       resolvedGroupIds.Count > 0 &&
                       (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id))) ||
-                     (resource.Type.Equals(HueResourceTypes.Scene, StringComparison.OrdinalIgnoreCase) &&
+                     (resource.Type == HueResourceType.Scene &&
                       resolvedGroupIds.Count > 0 &&
                       (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id)))) &&
                     (string.IsNullOrEmpty(normalizedGroup) || (resource.Groups ?? []).Any(group =>
@@ -284,7 +284,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             // A proposed group must be one of the target's actual Bridge associations; a model cannot attach a
             // resource to a room or zone merely by naming it.
             string? groupName = null;
-            string? groupType = null;
+            HueResourceType? groupType = null;
             if (!string.IsNullOrWhiteSpace(proposal.TargetGroupId))
             {
                 var group = (target.Groups ?? []).SingleOrDefault(candidate => candidate.Id == proposal.TargetGroupId);
@@ -298,11 +298,12 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
                 groupType = group.Type;
             }
 
-            var listedType = operation == HueOperation.ListResources && !string.IsNullOrWhiteSpace(proposal.TargetType)
-                ? proposal.TargetType
+            var listedType = operation == HueOperation.ListResources && !string.IsNullOrWhiteSpace(proposal.TargetType) &&
+                HueResourceTypeExtensions.TryParseHueV2WireType(proposal.TargetType, out var requestedType)
+                ? requestedType
                 : target.Type;
             var queryName = target.Name;
-            var intent = new HueIntent(operation, queryName, listedType, proposal.BrightnessPercent, proposal.Color,
+            var intent = CreateIntent(operation, queryName, listedType, proposal.BrightnessPercent, proposal.Color,
                 groupName, groupType);
             return HueActionValidator.TryCreate(intent, target, out _, out var error) ? intent : Clarify(error);
         }
@@ -356,7 +357,23 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
     /// <summary>Creates an intent that requests clarification from the user.</summary>
     private static HueIntent Clarify(string message)
     {
-        return new HueIntent(null, null, null, ClarificationQuestion: message);
+        return new ClarificationIntent(message);
+    }
+
+    private static HueIntent CreateIntent(HueOperation operation, string targetName, HueResourceType targetType,
+        int? brightnessPercent, string? color, string? targetGroupName, HueResourceType? targetGroupType)
+    {
+        return operation switch
+        {
+            HueOperation.TurnOn => new TurnOnIntent(targetName, targetType, targetGroupName, targetGroupType),
+            HueOperation.TurnOff => new TurnOffIntent(targetName, targetType, targetGroupName, targetGroupType),
+            HueOperation.SetBrightness => new SetBrightnessIntent(targetName, targetType, brightnessPercent, targetGroupName, targetGroupType),
+            HueOperation.SetColor => new SetColorIntent(targetName, targetType, color, targetGroupName, targetGroupType),
+            HueOperation.ActivateScene => new ActivateSceneIntent(targetName, targetType, targetGroupName, targetGroupType),
+            HueOperation.GetStatus => new GetStatusIntent(targetName, targetType, targetGroupName, targetGroupType),
+            HueOperation.ListResources => new ListResourcesIntent(targetName, targetType, targetGroupName, targetGroupType),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported Hue operation.")
+        };
     }
 
     // Mirrors the tool schema. It is deliberately private so unvalidated provider payloads do not escape this boundary.

@@ -73,7 +73,7 @@
                                         }
                                     </div>
                                 }
-                                else if (resource.Type is "light" or "scene")
+                                else if (resource.Type is HueResourceType.Light or HueResourceType.Scene)
                                 {
                                     <span class="unassociated-note">No room or zone association</span>
                                 }
@@ -118,36 +118,36 @@
         }
     }
 
-    private static int TypeOrder(string type)
+    private static int TypeOrder(HueResourceType type)
     {
-        return type.ToLowerInvariant() switch
+        return type switch
         {
-            "room" => 0,
-            "zone" => 1,
-            "light" => 2,
-            "scene" => 3,
+            HueResourceType.Room => 0,
+            HueResourceType.Zone => 1,
+            HueResourceType.Light => 2,
+            HueResourceType.Scene => 3,
             _ => 3
         };
     }
 
-    private static string DisplayType(string type)
+    private static string DisplayType(HueResourceType type)
     {
-        return type.ToLowerInvariant() switch
+        return type switch
         {
-            "room" => "Rooms",
-            "zone" => "Zones",
-            "light" => "Lights",
-            "scene" => "Scenes",
-            _ => $"{type}s"
+            HueResourceType.Room => "Rooms",
+            HueResourceType.Zone => "Zones",
+            HueResourceType.Light => "Lights",
+            HueResourceType.Scene => "Scenes",
+            _ => $"{type.ToHueV2WireType()}s"
         };
     }
 
-    private static string AssociationLabel(string type)
+    private static string AssociationLabel(HueResourceType type)
     {
-        return type.ToLowerInvariant() switch
+        return type switch
         {
-            "light" => "In:",
-            "scene" => "Applies to:",
+            HueResourceType.Light => "In:",
+            HueResourceType.Scene => "Applies to:",
             _ => "Associated with:"
         };
     }
