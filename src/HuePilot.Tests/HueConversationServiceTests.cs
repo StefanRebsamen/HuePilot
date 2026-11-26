@@ -338,24 +338,6 @@ public sealed class HueConversationServiceTests
         Assert.Contains("Hall lamp", result.AssistantMessage);
     }
 
-    [Theory]
-    [InlineData("d8f5da82-bde8-4fb6-ad14-accac5d30d05", false)]
-    [InlineData("6ab07f07-8bdc-42ce-8e31-56277de44999", true)]
-    public async Task PlanAsync_SingleScopedList_MustMatchLiteralRoomId(string literalId, bool clarify)
-    {
-        var office = Office with { Id = new Guid("d8f5da82-bde8-4fb6-ad14-accac5d30d05") };
-        var service = new HueConversationService(
-            new FakeIntentParser(new ListResourcesIntent(HueResourceType.Light, office.Id)),
-            new FakeHueService([office]));
-
-        var result = await service.PlanAsync($"List lights in room {literalId}", []);
-
-        Assert.Equal(clarify, result.NeedsClarification);
-        if (!clarify)
-        {
-            Assert.Contains("No lights were found in Office", result.AssistantMessage);
-        }
-    }
 
     [Fact]
     public async Task PlanAsync_MutationWithExplicitlyScopedList_ReturnsValidatedAction()
@@ -400,21 +382,6 @@ public sealed class HueConversationServiceTests
 
         Assert.False(result.NeedsClarification);
         Assert.Contains("Desk lamp", result.AssistantMessage);
-    }
-
-    [Fact]
-    public async Task PlanAsync_LiteralIdAndMultipleActions_RequiresClarification()
-    {
-        var desk = new HueResource(new Guid("1f4a3e82-0d92-4a22-860a-095ab64d0791"), "Desk lamp",
-            HueResourceType.Light);
-        var hue = new FakeHueService([desk]);
-        var parser = new FakeIntentParser(new TurnOnIntent(desk.Id), new SetBrightnessIntent(desk.Id, 40));
-        var service = new HueConversationService(parser, hue);
-
-        var result = await service.PlanAsync($"Turn on {desk.Id} and set its brightness to 40 percent", []);
-
-        Assert.True(result.NeedsClarification);
-        Assert.Null(result.ProposedActions);
     }
 
     [Fact]

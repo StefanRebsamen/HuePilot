@@ -40,17 +40,6 @@ public sealed class HueConversationService(IIntentParser parser, IHueService hue
             return new ConversationPlan("Which room or zone should I list before making the requested change?", true);
         }
 
-        var literalIds = HueRequestIds.Find(request);
-        var requestedId = intents switch
-        {
-            [TargetedHueIntent command] => command.TargetResourceId,
-            [ListResourcesIntent list] => list.TargetGroupId,
-            _ => null
-        };
-        if (literalIds.Length > 0 && (literalIds.Length > 1 || literalIds[0] != requestedId))
-        {
-            return new ConversationPlan("Please use one matching resource ID and one action per request.", true);
-        }
 
         var groups = resources.OfType<HueResourceGroup>().ToArray();
         var actions = new List<HueAction>();

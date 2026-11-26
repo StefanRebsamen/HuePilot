@@ -139,29 +139,6 @@ public sealed class OpenAiToolCallingIntentParserTests
         }
     }
 
-    [Theory]
-    [InlineData(DeskUuid, false)]
-    [InlineData(CeilingUuid, true)]
-    [InlineData("8d69569d-8f19-4aeb-8bcc-71d4c7233774", true)]
-    [InlineData(DeskUuid + " or " + CeilingUuid, true)]
-    [InlineData(CeilingUuid + "-extension", false)]
-    public async Task PlanAsync_ValidatedTargetMustMatchSingleLiteralIdNamedByUser(string userIds,
-        bool needsClarification)
-    {
-        var service = new HueConversationService(new ProposalParser(DeskUuid), new CatalogHueService());
-
-        var plan = await service.PlanAsync($"Turn on the Desk lamp ({userIds}) in the Office", []);
-
-        Assert.Equal(needsClarification, plan.NeedsClarification);
-        if (needsClarification)
-        {
-            Assert.Null(plan.ProposedActions);
-        }
-        else
-        {
-            Assert.Equal(OfficeDesk.Id, Assert.Single(plan.ProposedActions!).Target.Id);
-        }
-    }
 
     [Theory]
     [InlineData(OfficeUuid, OfficeUuid)]
