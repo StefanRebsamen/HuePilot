@@ -5,19 +5,27 @@ namespace HuePilot.Application.Hue;
 /// <summary>An in-memory stand-in used when Hue Bridge credentials are not configured.</summary>
 public sealed class DemoHueService : IHueService
 {
-    private readonly IReadOnlyList<HueResource> _resources =
-    [
-        new("room-office", "Office", HueResourceType.Room),
-        new("zone-upstairs", "Upstairs", HueResourceType.Zone),
-        new("light-desk", "Desk lamp", HueResourceType.Light,
-            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]),
-        new("light-ceiling", "Ceiling light", HueResourceType.Light,
-            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]),
-        new("scene-focus", "Focus", HueResourceType.Scene,
-            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)]),
-        new("scene-relax", "Relax", HueResourceType.Scene,
-            [new HueResourceGroup("room-office", "Office", HueResourceType.Room)])
-    ];
+    private readonly IReadOnlyList<HueResource> _resources;
+
+    /// <summary>Creates the catalog of sample rooms, zones, lights, and scenes.</summary>
+    public DemoHueService()
+    {
+        var desk = new HueResource(new Guid("cb84c10e-d817-4ed8-a66c-000000000001"), "Desk lamp",
+            HueResourceType.Light);
+        var ceiling = new HueResource(new Guid("cb84c10e-d817-4ed8-a66c-000000000002"), "Ceiling light",
+            HueResourceType.Light);
+        var focus = new HueResource(new Guid("cb84c10e-d817-4ed8-a66c-000000000003"), "Focus", HueResourceType.Scene);
+        var relax = new HueResource(new Guid("cb84c10e-d817-4ed8-a66c-000000000004"), "Relax", HueResourceType.Scene);
+
+        _resources =
+        [
+            new HueResourceGroup(new Guid("cb84c10e-d817-4ed8-a66c-000000000005"), "Office", HueResourceType.Room,
+                [desk, ceiling, focus, relax]),
+            new HueResourceGroup(new Guid("cb84c10e-d817-4ed8-a66c-000000000006"), "Upstairs", HueResourceType.Zone,
+                []),
+            desk, ceiling, focus, relax
+        ];
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<HueResource>> GetResourcesAsync(CancellationToken cancellationToken = default)

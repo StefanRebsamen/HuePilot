@@ -1,5 +1,6 @@
 using HuePilot.Application.Chat;
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 using OpenAI.Chat;
 
 namespace HuePilot.Application.IntentParsing;
@@ -21,6 +22,13 @@ public abstract class OpenAiIntentParserBase : IIntentParser
     /// <inheritdoc />
     public abstract Task<IReadOnlyList<HueIntent>> ParseAsync(string request, IReadOnlyList<ChatTurn> history,
         IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default);
+
+    /// <summary>Finds catalog groups containing the exact resource ID.</summary>
+    protected static IEnumerable<HueResourceGroup> FindContainingGroups(IEnumerable<HueResourceGroup> groups,
+        Guid resourceId)
+    {
+        return groups.Where(group => group.ContainsResource(resourceId));
+    }
 
     /// <summary>Creates the configured OpenAI chat client.</summary>
     protected ChatClient CreateClient()

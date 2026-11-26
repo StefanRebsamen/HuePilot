@@ -1,7 +1,7 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using HuePilot.Application.Chat;
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 using OpenAI.Chat;
 
 namespace HuePilot.Application.IntentParsing;
@@ -9,19 +9,19 @@ namespace HuePilot.Application.IntentParsing;
 /// <summary>
 /// Uses OpenAI JSON mode to translate a request into one or more proposed Hue intents.
 /// The model receives only the discovered resource catalog; returned intents remain untrusted until the
-/// application layer resolves their targets and validates each operation.
+/// parser resolves names against the catalog and the application validates IDs and operations.
 /// </summary>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
 public sealed class OpenAiStructuredIntentParser(IConfiguration configuration)
     : OpenAiIntentParserBase(configuration), IAiCallDiagnostics
 {
     private const string SystemPrompt = """
-                                        Convert the latest user request into one safe Philips Hue intent. Use only resources listed in the supplied catalog.
+                                        Convert the latest user request into one or more safe Philips Hue intents. Use only resources listed in the supplied catalog.
                                         Resource groups describe where a light belongs or which room/zone a scene controls. Use the user's requested room/group to disambiguate duplicate resource names.
                                         If the target is still ambiguous, the action is unsupported, or a value is outside the supported range,
                                         return a concise clarificationQuestion and no operation. Do not guess, clamp, or silently substitute values.
                                         Report GetStatus for requests asking whether a light, room, or zone is on or off, or for its current brightness.
-                                        Report ListResources for catalog questions such as what lights, rooms, zones, or scenes are available. For ListResources, targetType is the requested category (light, room, scene, or zone), and targetName is an optional room or zone used as the scope; targetGroupName can contain the same scope.
+                                        Report ListResources for catalog questions such as what lights, rooms, zones, or scenes are available. For ListResources, use targetType for the requested category (light, room, scene, or zone), targetGroupName for the requested scope (null for a global list), and null for targetName.
                                         Supported colors are red, orange, yellow, green, cyan, blue, purple, pink, white, warm white, and cool white.
                                         Return JSON with an "intents" array. For each action use fields: operation (TurnOn, TurnOff, SetBrightness, SetColor, ActivateScene, GetStatus, ListResources, or null),
                                         targetName, targetType (room, zone, light, or scene), targetGroupName, targetGroupType (room or zone, or null),
@@ -51,7 +51,7 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration)
         var json = completion.Value.Content.FirstOrDefault()?.Text ??
                    throw new InvalidOperationException("The AI provider returned no intent.");
         LastConversationLog = $"User request:\n{request}\n\nModel response:\n{json}";
-        return ParseIntents(json);
+        return ParseIntents(json, request, availableResources);
     }
 
     /// <summary>Resets diagnostics for a new parsing request.</summary>
@@ -68,11 +68,13 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration)
         var messages = CreateConversationMessages(SystemPrompt, history);
         // The catalog is supplied as data in the final user message rather than as a model-accessible service. This
         // lets ChatClient send the context needed for name resolution without granting the model Bridge access.
+        var groups = availableResources.OfType<HueResourceGroup>().ToArray();
         var catalog = JsonSerializer.Serialize(availableResources.Select(resource => new
         {
             resource.Name,
             resource.Type,
-            groups = (resource.Groups ?? []).Select(group => new { group.Name, group.Type })
+            groups = FindContainingGroups(groups, resource.Id)
+                .Select(group => new { group.Id, group.Name, group.Type })
         }));
         messages.Add(new UserChatMessage($"Available Hue resources: {catalog}\nLatest request: {request}"));
         return messages;
@@ -85,92 +87,30 @@ public sealed class OpenAiStructuredIntentParser(IConfiguration configuration)
     }
 
     /// <summary>Deserializes the model response into one or more Hue intents.</summary>
-    private static IReadOnlyList<HueIntent> ParseIntents(string json)
+    internal static IReadOnlyList<HueIntent> ParseIntents(string json, string request,
+        IReadOnlyList<HueResource> resources)
     {
-        var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        jsonOptions.Converters.Add(new JsonStringEnumConverter());
-        using var document = JsonDocument.Parse(json);
-        if (!document.RootElement.TryGetProperty("intents", out var intentsElement))
+        try
         {
-            var singleIntent = JsonSerializer.Deserialize<IntentProposal>(json, jsonOptions) ??
-                               throw new InvalidOperationException("The AI provider returned an invalid intent.");
-            return [CreateIntent(singleIntent)];
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var proposals = document.RootElement.TryGetProperty("intents", out var intents)
+                    ? intents.Deserialize<HueIntentProposal?[]>(HueIntentProposal.JsonOptions)
+                    : [document.RootElement.Deserialize<HueIntentProposal>(HueIntentProposal.JsonOptions)];
+                if (proposals is { Length: > 0 } && proposals.All(proposal => proposal is not null))
+                {
+                    var resolver = new HueIntentResolver(resources, request);
+                    var resolved = proposals.Select(proposal => resolver.Resolve(proposal!, false)).ToArray();
+                    return resolver.CheckCompleteGroupSelection(resolved);
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            // Incomplete or unsupported model output requires clarification.
         }
 
-        var intents = JsonSerializer.Deserialize<List<IntentProposal>>(intentsElement.GetRawText(), jsonOptions) ??
-                      throw new InvalidOperationException("The AI provider returned an invalid intent list.");
-        if (intents.Count == 0)
-        {
-            throw new InvalidOperationException("The AI provider returned no intents.");
-        }
-
-        return intents.Select(CreateIntent).ToArray();
+        return [new ClarificationIntent("I couldn't read a supported Hue request. Could you rephrase it?")];
     }
-
-    private static HueIntent CreateIntent(IntentProposal proposal)
-    {
-        if (!string.IsNullOrWhiteSpace(proposal.ClarificationQuestion) || proposal.Operation is null)
-        {
-            return new ClarificationIntent(proposal.ClarificationQuestion ??
-                "I couldn't determine the requested action. Could you rephrase it?");
-        }
-
-        if (!HueResourceTypeExtensions.TryParseHueV2WireType(proposal.TargetType, out var targetType))
-        {
-            return new ClarificationIntent("I couldn't determine the requested resource type. Could you rephrase it?");
-        }
-
-        if (!TryParseOptionalResourceType(proposal.TargetGroupType, out var targetGroupType))
-        {
-            return new ClarificationIntent("I couldn't determine the requested room or zone type. Could you rephrase it?");
-        }
-
-        var targetName = proposal.TargetName ?? "";
-        return proposal.Operation.Value switch
-        {
-            HueOperation.TurnOn => new TurnOnIntent(targetName, targetType, proposal.TargetGroupName,
-                targetGroupType),
-            HueOperation.TurnOff => new TurnOffIntent(targetName, targetType, proposal.TargetGroupName,
-                targetGroupType),
-            HueOperation.SetBrightness => new SetBrightnessIntent(targetName, targetType, proposal.BrightnessPercent,
-                proposal.TargetGroupName, targetGroupType),
-            HueOperation.SetColor => new SetColorIntent(targetName, targetType, proposal.Color,
-                proposal.TargetGroupName, targetGroupType),
-            HueOperation.ActivateScene => new ActivateSceneIntent(targetName, targetType, proposal.TargetGroupName,
-                targetGroupType),
-            HueOperation.GetStatus => new GetStatusIntent(targetName, targetType, proposal.TargetGroupName,
-                targetGroupType),
-            HueOperation.ListResources => new ListResourcesIntent(proposal.TargetName, targetType,
-                proposal.TargetGroupName, targetGroupType),
-            _ => new ClarificationIntent("I couldn't determine the requested action. Could you rephrase it?")
-        };
-    }
-
-    private static bool TryParseOptionalResourceType(string? identifier, out HueResourceType? type)
-    {
-        if (string.IsNullOrWhiteSpace(identifier))
-        {
-            type = null;
-            return true;
-        }
-
-        if (HueResourceTypeExtensions.TryParseHueV2WireType(identifier, out var parsedType))
-        {
-            type = parsedType;
-            return true;
-        }
-
-        type = null;
-        return false;
-    }
-
-    private sealed record IntentProposal(
-        HueOperation? Operation,
-        string? TargetName,
-        string? TargetType,
-        int? BrightnessPercent,
-        string? Color,
-        string? TargetGroupName,
-        string? TargetGroupType,
-        string? ClarificationQuestion);
 }

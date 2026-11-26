@@ -52,6 +52,7 @@
     }
     else
     {
+        var resourceGroups = _resources.OfType<HueResourceGroup>().ToArray();
         @foreach (var group in _resources.GroupBy(x => x.Type).OrderBy(x => TypeOrder(x.Key)))
         {
             <section class="resource-group">
@@ -62,20 +63,24 @@
                         <li>
                             <div class="resource-details">
                                 <strong>@resource.Name</strong>
-                                @if (resource.Groups is { Count: > 0 })
+                                @if (resource.Type is HueResourceType.Light or HueResourceType.Scene)
                                 {
-                                    <div class="resource-associations">
-                                        <span>@AssociationLabel(resource.Type)</span>
-                                        @foreach (var association in resource.Groups)
-                                        {
-                                            <span
-                                                class="association-chip">@association.Name <small>@association.Type</small></span>
-                                        }
-                                    </div>
-                                }
-                                else if (resource.Type is HueResourceType.Light or HueResourceType.Scene)
-                                {
-                                    <span class="unassociated-note">No room or zone association</span>
+                                    var associations = resourceGroups.Where(group => group.ContainsResource(resource.Id)).ToArray();
+                                    if (associations.Length > 0)
+                                    {
+                                        <div class="resource-associations">
+                                            <span>@(resource.Type == HueResourceType.Light ? "In:" : "Applies to:")</span>
+                                            @foreach (var association in associations)
+                                            {
+                                                <span
+                                                    class="association-chip">@association.Name <small>@association.Type</small></span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="unassociated-note">No room or zone association</span>
+                                    }
                                 }
                             </div>
                             <code title="Hue resource ID">@resource.Id</code>
@@ -139,16 +144,6 @@
             HueResourceType.Light => "Lights",
             HueResourceType.Scene => "Scenes",
             _ => $"{type.ToHueV2WireType()}s"
-        };
-    }
-
-    private static string AssociationLabel(HueResourceType type)
-    {
-        return type switch
-        {
-            HueResourceType.Light => "In:",
-            HueResourceType.Scene => "Applies to:",
-            _ => "Associated with:"
         };
     }
 

@@ -1,5 +1,6 @@
 using HuePilot.Application.Chat;
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 
 namespace HuePilot.Application.IntentParsing;
 

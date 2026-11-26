@@ -2,7 +2,7 @@ namespace HuePilot.Application.Hue.Models;
 
 /// <summary>Current readable state of a discovered Hue light, room, or zone.</summary>
 public sealed record HueStatus(
-    string ResourceId,
+    Guid ResourceId,
     string ResourceName,
     HueResourceType ResourceType,
     bool IsOn,

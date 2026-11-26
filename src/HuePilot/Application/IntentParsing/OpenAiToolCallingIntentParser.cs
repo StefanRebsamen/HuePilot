@@ -2,16 +2,22 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using HuePilot.Application.Chat;
-using HuePilot.Application.Hue;
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 using OpenAI.Chat;
 
 namespace HuePilot.Application.IntentParsing;
 
 /// <summary>
-/// Implements a bounded, tool-driven planning loop. Its tools can search only the supplied Hue catalog and propose
-/// actions; they cannot call a Bridge. HuePilot validates and displays every proposal before any Hue mutation occurs.
+/// Implements a bounded, tool-driven planning loop for Hue requests.
 /// </summary>
+/// <remarks>
+/// The model receives no Bridge client and can only inspect the server-supplied catalog through
+/// <c>lookup_resources</c>. A separate proposal tool may describe an allowlisted operation, but every proposal is
+/// grounded by <see cref="HueIntentResolver" /> and later displayed for confirmation before a Hue mutation occurs.
+/// Model output, catalog names, and prior conversation are untrusted data; only current catalog IDs cross into the
+/// application intent model. Turn and lookup limits bound provider use and catalog output.
+/// </remarks>
 /// <param name="configuration">Configuration containing the OpenAI key and optional model name.</param>
 public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
     : OpenAiIntentParserBase(configuration), IAiCallDiagnostics
@@ -26,7 +32,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
                                         Resolve natural-language names and German commands against lookup results. "ein" and "anschalten" mean TurnOn; "aus" and "abschalten" mean TurnOff.
                                         Use only names and opaque IDs returned by lookup_resources in the current request. Never reuse an ID from a previous request or guess an ID. Resource groups identify the room/zone a light belongs to or a scene controls.
                                         For ListResources, first find the requested scope with lookup_resources (for example room or zone "Office"). For lights, you may resolve the room/zone name directly in lookup_resources (resourceType "light", groupName "Office"). Prefer groupId from the returned matchedGroups when available.
-                                        For "what lights are in Office", targetId should be the discovered Office room ID and targetType should be "light".
+                                        For ListResources set targetType to the requested category, targetGroupId to the group ID (null for a global list), and targetId and targetName to null.
                                         Use the group filter when the user specifies a room/zone. If the target remains ambiguous (including duplicate names in one group),
                                         the action is unsupported, or a value is out of range, ask a concise clarification question and do not propose an action.
                                         Supported operations are GetStatus, ListResources, TurnOn, TurnOff, SetBrightness (integer 1-100), SetColor (red, orange, yellow, green, cyan, blue,
@@ -44,13 +50,12 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
     private static readonly ChatTool ProposeActionTool = ChatTool.CreateFunctionTool("propose_hue_action",
         "Propose one validated Hue action or resource-list request for a resource returned by lookup_resources. This only plans the action; it never changes a light.",
         BinaryData.FromString("""
-                              {"type":"object","properties":{"operation":{"type":"string","enum":["GetStatus","ListResources","TurnOn","TurnOff","SetBrightness","SetColor","ActivateScene"]},"targetId":{"type":"string","description":"Exact opaque ID returned by lookup_resources."},"targetName":{"type":"string","description":"Exact resource name returned by lookup_resources."},"targetType":{"type":["string","null"],"enum":["room","zone","light","scene",null]},"targetGroupId":{"type":["string","null"],"description":"Associated room/zone ID when the user's request specifies one; otherwise null."},"brightnessPercent":{"type":["integer","null"]},"color":{"type":["string","null"]}},"required":["operation","targetId","targetName","targetType","targetGroupId","brightnessPercent","color"],"additionalProperties":false}
+                              {"type":"object","properties":{"operation":{"type":"string","enum":["GetStatus","ListResources","TurnOn","TurnOff","SetBrightness","SetColor","ActivateScene"]},"targetId":{"type":["string","null"],"description":"Exact opaque ID for actions; null for lists."},"targetName":{"type":["string","null"],"description":"Exact resource name for actions; null for lists."},"targetType":{"type":["string","null"],"enum":["room","zone","light","scene",null]},"targetGroupId":{"type":["string","null"],"description":"Associated room/zone ID when the user's request specifies one; otherwise null."},"brightnessPercent":{"type":["integer","null"]},"color":{"type":["string","null"]}},"required":["operation","targetId","targetName","targetType","targetGroupId","brightnessPercent","color"],"additionalProperties":false}
                               """), false);
 
     // Diagnostics are reset for every ParseAsync call and are never used as conversation memory.
     private readonly StringBuilder _conversationLog = new();
 
-    private readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly List<HueIntent> _proposedIntents = [];
 
     /// <inheritdoc />
@@ -67,8 +72,10 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
         IReadOnlyList<HueResource> availableResources, CancellationToken cancellationToken = default)
     {
         ResetState(request);
-        return await RunPlanningLoopAsync(CreateClient(), CreateMessages(request, history), CreateOptions(),
-            availableResources, cancellationToken);
+        var resolver = new HueIntentResolver(availableResources, request);
+        var intents = await RunPlanningLoopAsync(CreateClient(), CreateMessages(request, history), CreateOptions(),
+            resolver, availableResources, cancellationToken);
+        return resolver.CheckCompleteGroupSelection(intents);
     }
 
     /// <summary>Resets planning state for a new request.</summary>
@@ -98,9 +105,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
         return options;
     }
 
-    /// <summary>Runs the bounded model and tool-call planning loop.</summary>
+    /// <summary>Runs the bounded model and tool-call planning loop until it returns proposals or a clarification.</summary>
     private async Task<IReadOnlyList<HueIntent>> RunPlanningLoopAsync(ChatClient client, List<ChatMessage> messages,
-        ChatCompletionOptions options, IReadOnlyList<HueResource> availableResources,
+        ChatCompletionOptions options, HueIntentResolver resolver, IReadOnlyList<HueResource> availableResources,
         CancellationToken cancellationToken)
     {
         for (var turn = 0; turn < MaxModelTurns; turn++)
@@ -115,7 +122,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
                 return HandleTextResponse(message.Content.FirstOrDefault()?.Text);
             }
 
-            var terminalResponse = ProcessToolCalls(message.ToolCalls, messages, availableResources);
+            var terminalResponse = ProcessToolCalls(message.ToolCalls, messages, availableResources, resolver);
             if (terminalResponse is not null)
             {
                 return terminalResponse;
@@ -141,14 +148,14 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             ];
     }
 
-    /// <summary>Processes each tool call in a model response.</summary>
+    /// <summary>Processes all calls in one model response while preserving their tool-message ordering.</summary>
     private IReadOnlyList<HueIntent>? ProcessToolCalls(IReadOnlyList<ChatToolCall> toolCalls,
-        List<ChatMessage> messages, IReadOnlyList<HueResource> availableResources)
+        List<ChatMessage> messages, IReadOnlyList<HueResource> availableResources, HueIntentResolver resolver)
     {
         messages.Add(new AssistantChatMessage(toolCalls));
         foreach (var toolCall in toolCalls)
         {
-            var terminalResponse = ProcessToolCall(toolCall, messages, availableResources);
+            var terminalResponse = ProcessToolCall(toolCall, messages, availableResources, resolver);
             if (terminalResponse is not null)
             {
                 return terminalResponse;
@@ -158,9 +165,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
         return null;
     }
 
-    /// <summary>Processes one catalog lookup or action proposal tool call.</summary>
+    /// <summary>Processes one catalog lookup or action proposal without giving the model Bridge access.</summary>
     private IReadOnlyList<HueIntent>? ProcessToolCall(ChatToolCall toolCall, List<ChatMessage> messages,
-        IReadOnlyList<HueResource> availableResources)
+        IReadOnlyList<HueResource> availableResources, HueIntentResolver resolver)
     {
         LastToolCallCount++;
         var arguments = toolCall.FunctionArguments.ToString();
@@ -181,7 +188,7 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             return null;
         }
 
-        var proposal = ParseProposal(arguments, availableResources);
+        var proposal = ParseProposal(arguments, resolver);
         if (proposal is ClarificationIntent)
         {
             return [proposal];
@@ -192,7 +199,9 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
         return null;
     }
 
-    /// <summary>Resolves a model lookup against the discovered Hue catalog.</summary>
+    /// <summary>
+    /// Resolves a model lookup against the discovered Hue catalog and serializes only catalog-backed results.
+    /// </summary>
     public static string LookupResources(string json, IReadOnlyList<HueResource> resources)
     {
         try
@@ -201,44 +210,51 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
             var query = document.RootElement.GetProperty("query").GetString()?.Trim() ?? "";
             var type = document.RootElement.GetProperty("resourceType").GetString() ?? "all";
             var groupName = document.RootElement.GetProperty("groupName").GetString()?.Trim() ?? "";
-            var groupId = document.RootElement.TryGetProperty("groupId", out var groupIdElement)
-                ? groupIdElement.GetString()?.Trim() ?? ""
-                : "";
+            Guid? groupId = null;
+            if (document.RootElement.TryGetProperty("groupId", out var element) &&
+                element.GetString() is { Length: > 0 } value)
+            {
+                if (value.Length != 36 || !Guid.TryParseExact(value, "D", out var id) || id == Guid.Empty)
+                {
+                    return "Invalid group ID. Use the room or zone UUID returned by lookup_resources.";
+                }
+
+                groupId = id;
+            }
+
             // Resource IDs are opaque references: only IDs from this server-side catalog are returned to the model.
             var normalizedQuery = NormalizeSearchText(query);
             var normalizedGroup = NormalizeSearchText(groupName);
-            var knownGroups = resources.SelectMany(resource => resource.Groups ?? []).Concat(resources
-                    .Where(resource => resource.Type is HueResourceType.Room or HueResourceType.Zone)
-                    .Select(resource => new HueResourceGroup(resource.Id, resource.Name, resource.Type)))
-                .DistinctBy(group => group.Id);
+            var knownGroups = resources.OfType<HueResourceGroup>().ToArray();
+            var queryMatchedGroupIds = knownGroups
+                .Where(group =>
+                    !string.IsNullOrEmpty(normalizedQuery) && MatchesSearchText(group.Name, normalizedQuery))
+                .Select(group => group.Id).ToHashSet();
             var matchedGroups = knownGroups.Where(group =>
-                    (!string.IsNullOrEmpty(groupId) && group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)) ||
+                    group.Id == groupId ||
                     (!string.IsNullOrEmpty(normalizedGroup) && MatchesSearchText(group.Name, normalizedGroup)) ||
-                    (!string.IsNullOrEmpty(normalizedQuery) && MatchesSearchText(group.Name, normalizedQuery)))
-                .Take(MaxLookupResults).Select(group => new { id = group.Id, name = group.Name, type = group.Type })
-                .ToArray();
-            var resolvedGroupIds = matchedGroups.Select(group => group.id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    queryMatchedGroupIds.Contains(group.Id)).Take(MaxLookupResults)
+                .Select(group => new { id = group.Id, name = group.Name, type = group.Type }).ToArray();
 
-            var matches = resources.Where(resource =>
-                    (type == "all" || resource.Type.ToHueV2WireType().Equals(type, StringComparison.OrdinalIgnoreCase)) &&
-                    (string.IsNullOrEmpty(normalizedQuery) || MatchesSearchText(resource.Name, normalizedQuery) ||
-                     (resource.Type == HueResourceType.Light &&
-                      resolvedGroupIds.Count > 0 &&
-                      (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id))) ||
-                     (resource.Type == HueResourceType.Scene &&
-                      resolvedGroupIds.Count > 0 &&
-                      (resource.Groups ?? []).Any(group => resolvedGroupIds.Contains(group.Id)))) &&
-                    (string.IsNullOrEmpty(normalizedGroup) || (resource.Groups ?? []).Any(group =>
+            var matches = resources
+                .Where(resource =>
+                    type == "all" || resource.Type.ToHueV2WireType().Equals(type, StringComparison.OrdinalIgnoreCase))
+                .Select(resource =>
+                    (Resource: resource, Groups: FindContainingGroups(knownGroups, resource.Id).ToArray()))
+                .Where(match =>
+                    (string.IsNullOrEmpty(normalizedQuery) || MatchesSearchText(match.Resource.Name, normalizedQuery) ||
+                     (match.Resource.Type is HueResourceType.Light or HueResourceType.Scene &&
+                      match.Groups.Any(group => queryMatchedGroupIds.Contains(group.Id)))) &&
+                    (string.IsNullOrEmpty(normalizedGroup) || match.Groups.Any(group =>
                         NormalizeSearchText(group.Name)
                             .Contains(normalizedGroup, StringComparison.OrdinalIgnoreCase))) &&
-                    (string.IsNullOrEmpty(groupId) || (resource.Groups ?? []).Any(group =>
-                        group.Id.Equals(groupId, StringComparison.OrdinalIgnoreCase)))).Take(MaxLookupResults)
-                .Select(resource => new
+                    (groupId is null || match.Groups.Any(group => group.Id == groupId))).Take(MaxLookupResults)
+                .Select(match => new
                 {
-                    id = resource.Id,
-                    name = resource.Name,
-                    type = resource.Type,
-                    groups = (resource.Groups ?? []).Select(group =>
+                    id = match.Resource.Id,
+                    name = match.Resource.Name,
+                    type = match.Resource.Type,
+                    groups = match.Groups.Select(group =>
                         new { id = group.Id, name = group.Name, type = group.Type })
                 }).ToArray();
             return JsonSerializer.Serialize(new
@@ -254,63 +270,22 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
     }
 
     /// <summary>Validates a proposed action against the discovered Hue catalog.</summary>
-    private HueIntent ParseProposal(string json, IReadOnlyList<HueResource> resources)
+    internal static HueIntent ParseProposal(string json, HueIntentResolver resolver)
     {
         try
         {
-            var proposal = JsonSerializer.Deserialize<ActionProposal>(json, _jsonOptions);
-            if (proposal is null || !Enum.TryParse<HueOperation>(proposal.Operation, true, out var operation))
+            var proposal = JsonSerializer.Deserialize<HueIntentProposal>(json, HueIntentProposal.JsonOptions);
+            if (proposal is not null)
             {
-                return Clarify("I couldn't determine a supported Hue action. What change would you like?");
+                return resolver.Resolve(proposal, true);
             }
-
-            var target = resources.SingleOrDefault(resource => resource.Id == proposal.TargetId &&
-                                                               (string.IsNullOrWhiteSpace(proposal.TargetName) ||
-                                                                resource.Name.Equals(proposal.TargetName,
-                                                                    StringComparison.OrdinalIgnoreCase)));
-            if (target is null && !string.IsNullOrWhiteSpace(proposal.TargetName))
-            {
-                var nameMatches = resources.Where(resource =>
-                    resource.Name.Equals(proposal.TargetName, StringComparison.OrdinalIgnoreCase)).ToArray();
-                target = nameMatches.Length == 1 ? nameMatches[0] : null;
-            }
-
-            if (target is null)
-            {
-                return Clarify(
-                    "I couldn't match that to an available Hue resource. Please use the exact name and ID returned by the resource lookup.");
-            }
-
-            // A proposed group must be one of the target's actual Bridge associations; a model cannot attach a
-            // resource to a room or zone merely by naming it.
-            string? groupName = null;
-            HueResourceType? groupType = null;
-            if (!string.IsNullOrWhiteSpace(proposal.TargetGroupId))
-            {
-                var group = (target.Groups ?? []).SingleOrDefault(candidate => candidate.Id == proposal.TargetGroupId);
-                if (group is null)
-                {
-                    return Clarify(
-                        "That resource is not associated with the requested room or zone. Which one did you mean?");
-                }
-
-                groupName = group.Name;
-                groupType = group.Type;
-            }
-
-            var listedType = operation == HueOperation.ListResources && !string.IsNullOrWhiteSpace(proposal.TargetType) &&
-                HueResourceTypeExtensions.TryParseHueV2WireType(proposal.TargetType, out var requestedType)
-                ? requestedType
-                : target.Type;
-            var queryName = target.Name;
-            var intent = CreateIntent(operation, queryName, listedType, proposal.BrightnessPercent, proposal.Color,
-                groupName, groupType);
-            return HueActionValidator.TryCreate(intent, target, out _, out var error) ? intent : Clarify(error);
         }
         catch (JsonException)
         {
-            return Clarify("I couldn't safely read the proposed action. Could you rephrase your request?");
+            // Do not accept malformed tool arguments.
         }
+
+        return Clarify("I couldn't safely read the proposed action. Could you rephrase your request?");
     }
 
     /// <summary>Determines whether a resource name matches a normalized search query.</summary>
@@ -359,30 +334,4 @@ public sealed class OpenAiToolCallingIntentParser(IConfiguration configuration)
     {
         return new ClarificationIntent(message);
     }
-
-    private static HueIntent CreateIntent(HueOperation operation, string targetName, HueResourceType targetType,
-        int? brightnessPercent, string? color, string? targetGroupName, HueResourceType? targetGroupType)
-    {
-        return operation switch
-        {
-            HueOperation.TurnOn => new TurnOnIntent(targetName, targetType, targetGroupName, targetGroupType),
-            HueOperation.TurnOff => new TurnOffIntent(targetName, targetType, targetGroupName, targetGroupType),
-            HueOperation.SetBrightness => new SetBrightnessIntent(targetName, targetType, brightnessPercent, targetGroupName, targetGroupType),
-            HueOperation.SetColor => new SetColorIntent(targetName, targetType, color, targetGroupName, targetGroupType),
-            HueOperation.ActivateScene => new ActivateSceneIntent(targetName, targetType, targetGroupName, targetGroupType),
-            HueOperation.GetStatus => new GetStatusIntent(targetName, targetType, targetGroupName, targetGroupType),
-            HueOperation.ListResources => new ListResourcesIntent(targetName, targetType, targetGroupName, targetGroupType),
-            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported Hue operation.")
-        };
-    }
-
-    // Mirrors the tool schema. It is deliberately private so unvalidated provider payloads do not escape this boundary.
-    private sealed record ActionProposal(
-        string Operation,
-        string TargetId,
-        string? TargetName,
-        string? TargetType,
-        string? TargetGroupId,
-        int? BrightnessPercent,
-        string? Color);
 }

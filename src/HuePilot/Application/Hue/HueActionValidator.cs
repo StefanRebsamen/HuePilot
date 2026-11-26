@@ -1,4 +1,5 @@
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 
 namespace HuePilot.Application.Hue;
 
@@ -11,8 +12,15 @@ public static class HueActionValidator
     ];
 
     /// <summary>Creates an executable action only when the intent matches the resolved resource and valid ranges.</summary>
-    public static bool TryCreate(HueIntent intent, HueResource target, out HueAction? action, out string error)
+    public static bool TryCreate(TargetedHueIntent intent, HueResource target, out HueAction? action, out string error)
     {
+        if (target.Id == Guid.Empty || target.Id != intent.TargetResourceId)
+        {
+            action = null;
+            error = "That ID does not identify the requested Hue resource.";
+            return false;
+        }
+
         if (intent is SetBrightnessIntent { BrightnessPercent: not (>= 1 and <= 100) })
         {
             action = null;
@@ -44,14 +52,8 @@ public static class HueActionValidator
             }
         }
 
-        if (intent is ListResourcesIntent)
-        {
-            action = new HueAction(HueOperation.ListResources, target);
-            error = string.Empty;
-            return true;
-        }
-
-        if (target.Type is not (HueResourceType.Room or HueResourceType.Zone or HueResourceType.Light or HueResourceType.Scene))
+        if (target.Type is not (HueResourceType.Room or HueResourceType.Zone or HueResourceType.Light
+            or HueResourceType.Scene))
         {
             action = null;
             error = "That Hue resource type isn't supported.";
@@ -76,7 +78,8 @@ public static class HueActionValidator
         {
             TurnOnIntent => new HueAction(HueOperation.TurnOn, target),
             TurnOffIntent => new HueAction(HueOperation.TurnOff, target),
-            SetBrightnessIntent brightness => new HueAction(HueOperation.SetBrightness, target, brightness.BrightnessPercent),
+            SetBrightnessIntent brightness => new HueAction(HueOperation.SetBrightness, target,
+                brightness.BrightnessPercent),
             SetColorIntent color => new HueAction(HueOperation.SetColor, target, Color: color.Color),
             ActivateSceneIntent => new HueAction(HueOperation.ActivateScene, target),
             GetStatusIntent => new HueAction(HueOperation.GetStatus, target),
@@ -92,6 +95,8 @@ public static class HueActionValidator
         return false;
     }
 
-    private static bool IsScene(HueResource target) =>
-        target.Type == HueResourceType.Scene;
+    private static bool IsScene(HueResource target)
+    {
+        return target.Type == HueResourceType.Scene;
+    }
 }

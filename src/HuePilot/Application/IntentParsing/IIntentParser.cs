@@ -1,13 +1,16 @@
+using HuePilot.Application.Chat;
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 
-namespace HuePilot.Application.Chat;
+namespace HuePilot.Application.IntentParsing;
 
 /// <summary>Converts natural-language requests into structured Hue intents.</summary>
 public interface IIntentParser
 {
     /// <summary>
     /// Interprets a user request using the available resource catalog and recent conversation. Implementations must
-    /// treat model output as untrusted; application code performs final validation.
+    /// resolve names against this catalog and return ID-based intents or a clarification for ambiguous matches.
+    /// Application code performs final validation.
     /// </summary>
     /// <param name="request">The latest user message.</param>
     /// <param name="history">Prior chat turns from the current session.</param>

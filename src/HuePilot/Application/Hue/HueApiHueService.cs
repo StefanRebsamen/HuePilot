@@ -33,24 +33,19 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     /// <inheritdoc />
     public async Task<HueStatus> GetStatusAsync(AppHueResource resource, CancellationToken cancellationToken = default)
     {
-        if (!Guid.TryParse(resource.Id, out var resourceId))
-        {
-            throw new InvalidOperationException("The Hue resource identifier is invalid.");
-        }
-
         var api = CreateApi();
         if (resource.Type == HueResourceType.Light)
         {
-            var light = (await api.Light.GetAllAsync()).Data.Single(x => x.Id == resourceId);
+            var light = (await api.Light.GetAllAsync()).Data.Single(x => x.Id == resource.Id);
             var brightness = light.Dimming?.Brightness;
             var xy = light.Color?.Xy;
-            return new HueStatus(resource.Id, resource.Name, resource.Type, light.On?.IsOn == true,
+            return new HueStatus(resource.Id, resource.Name, resource.Type, light.On.IsOn,
                 brightness is null ? null : (int)Math.Round(brightness.Value), xy?.X, xy?.Y);
         }
 
         if (resource.Type is HueResourceType.Room or HueResourceType.Zone)
         {
-            var groupedLightId = await FindGroupedLightIdAsync(api, resourceId, resource.Type, cancellationToken);
+            var groupedLightId = await FindGroupedLightIdAsync(api, resource.Id, resource.Type);
             if (groupedLightId is null)
             {
                 throw new InvalidOperationException(
@@ -59,7 +54,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
 
             var groupedLight = (await api.GroupedLight.GetAllAsync()).Data.Single(x => x.Id == groupedLightId.Value);
             var brightness = groupedLight.Dimming?.Brightness;
-            return new HueStatus(resource.Id, resource.Name, resource.Type, groupedLight.On?.IsOn == true,
+            return new HueStatus(resource.Id, resource.Name, resource.Type, groupedLight.On.IsOn,
                 brightness is null ? null : (int)Math.Round(brightness.Value));
         }
 
@@ -71,16 +66,10 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
     {
         var api = CreateApi();
         var resources = await GetResourcesAsync(cancellationToken);
-        var current = resources.SingleOrDefault(x => x.Id == action.Target.Id &&
-                                                     x.Type == action.Target.Type);
+        var current = resources.SingleOrDefault(x => x.Id == action.Target.Id && x.Type == action.Target.Type);
         if (current is null)
         {
             throw new InvalidOperationException("That Hue resource is no longer available. Please try again.");
-        }
-
-        if (!Guid.TryParse(current.Id, out var resourceId))
-        {
-            throw new InvalidOperationException("The Hue resource identifier is invalid.");
         }
 
         switch (action.Operation)
@@ -91,7 +80,7 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
                     throw new InvalidOperationException("Only an existing scene can be activated.");
                 }
 
-                await api.Scene.UpdateAsync(resourceId,
+                await api.Scene.UpdateAsync(current.Id,
                     new UpdateScene { Recall = new Recall { Action = SceneRecallAction.active } });
                 break;
             case HueOperation.TurnOn:
@@ -100,14 +89,13 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
             case HueOperation.SetColor:
                 if (current.Type == HueResourceType.Light)
                 {
-                    await api.Light.UpdateAsync(resourceId, BuildLightUpdate(action));
+                    await api.Light.UpdateAsync(current.Id, BuildLightUpdate(action));
                     break;
                 }
 
                 if (current.Type is HueResourceType.Room or HueResourceType.Zone)
                 {
-                    var groupedLightId = await FindGroupedLightIdAsync(
-                        api, resourceId, current.Type, cancellationToken);
+                    var groupedLightId = await FindGroupedLightIdAsync(api, current.Id, current.Type);
 
                     if (groupedLightId is null)
                     {
@@ -136,26 +124,20 @@ public sealed class HueApiHueService(IConfiguration configuration) : IHueService
         return new LocalHueApi(_bridgeIp, _applicationKey);
     }
 
-    private static async Task<Guid?> FindGroupedLightIdAsync(LocalHueApi api, Guid groupId, HueResourceType groupType,
-        CancellationToken cancellationToken)
+    private static async Task<Guid?> FindGroupedLightIdAsync(LocalHueApi api, Guid groupId, HueResourceType groupType)
     {
-        IReadOnlyList<ResourceIdentifier>? groupedServices;
         if (groupType == HueResourceType.Room)
         {
             var room = (await api.Room.GetAllAsync()).Data.Single(x => x.Id == groupId);
-            groupedServices = room.GroupedServices;
+            IReadOnlyList<ResourceIdentifier> groupedServices = room.GroupedServices;
 
             var configuredId = groupedServices.FirstOrDefault(x =>
-                x.Rtype.Equals(HueResourceType.GroupedLight.ToHueV2WireType(), StringComparison.OrdinalIgnoreCase))?.Rid;
+                    x.Rtype.Equals(HueResourceType.GroupedLight.ToHueV2WireType(), StringComparison.OrdinalIgnoreCase))
+                ?.Rid;
             if (configuredId is not null)
             {
                 return configuredId;
             }
-        }
-        else
-        {
-            var zone = (await api.Zone.GetAllAsync()).Data.Single(x => x.Id == groupId);
-            groupedServices = null;
         }
 
         var groupedLights = await api.GroupedLight.GetAllAsync();

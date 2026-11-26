@@ -9,7 +9,7 @@ namespace HuePilot.Tests;
 
 public sealed class HueApiHueServiceTests
 {
-    private static readonly HueResource Office = new("room-1", "Office", HueResourceType.Room);
+    private static readonly HueResource Office = new(Guid.NewGuid(), "Office", HueResourceType.Room);
 
     [Fact]
     public async Task GetResourcesAsync_BridgeSecretsAreMissing_ThrowsConfigurationException()

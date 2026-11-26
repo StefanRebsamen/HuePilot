@@ -15,96 +15,67 @@ namespace HuePilot.Application.Hue;
 public static class HueResourceMapper
 {
     /// <summary>
-    /// Joins room/zone children to light services on their devices and attaches each scene to its owner group.
+    /// Maps room and zone children to their light services and adds each scene to its owning group.
     /// </summary>
     /// <param name="lights">Light service resources returned by the Bridge.</param>
-    /// <param name="rooms">Room groups and their child devices.</param>
-    /// <param name="zones">Zone groups and their child devices.</param>
+    /// <param name="rooms">Room groups and their children.</param>
+    /// <param name="zones">Zone groups and their children.</param>
     /// <param name="scenes">Scenes and their owning room or zone.</param>
     /// <param name="devices">
     /// Devices that connect group child IDs to light service IDs.
     /// </param>
     /// <returns>
-    /// Application resources carrying display names, stable IDs, and associations.
+    /// A flat catalog of application resources, including rooms and zones with their members.
     /// </returns>
     public static IReadOnlyList<AppHueResource> Map(IEnumerable<ApiLight> lights, IEnumerable<ApiRoom> rooms,
         IEnumerable<ApiZone> zones, IReadOnlyCollection<ApiScene> scenes, IEnumerable<ApiDevice> devices)
     {
-        var roomList = rooms.ToArray();
-        var zoneList = zones.ToArray();
         var deviceById = devices.ToDictionary(device => device.Id);
-        var groupsById = roomList
-            .Select(room => new HueResourceGroup(room.Id.ToString(), Name(room.Metadata?.Name, "Unnamed room"),
-                HueResourceType.Room))
-            .Concat(zoneList.Select(zone => new HueResourceGroup(zone.Id.ToString(),
-                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceType.Zone)))
-            .ToDictionary(group => Guid.Parse(group.Id));
-
-        var lightGroups = new Dictionary<Guid, List<HueResourceGroup>>();
-        AddMembership(roomList.Select(room => (room.Id, room.Children)), HueResourceType.Room);
-        AddMembership(zoneList.Select(zone => (zone.Id, zone.Children)), HueResourceType.Zone);
-
-        // A scene's group is its activation target; retaining it lets the UI and AI distinguish
-        // same-named scenes that control different rooms or zones.
-        var sceneGroups = scenes.ToDictionary(scene => scene.Id,
-            scene => scene.Group is not null && groupsById.TryGetValue(scene.Group.Rid, out var group)
-                ? (IReadOnlyList<HueResourceGroup>)[group]
-                : []);
+        var lightResources = lights.Select(light => new AppHueResource(light.Id,
+            Name(light.Metadata?.Name, "Unnamed light"), HueResourceType.Light)).ToArray();
+        var lightsById = lightResources.ToLookup(light => light.Id);
+        var sceneResources = scenes.Select(scene => (scene.Group,
+                Resource: new AppHueResource(scene.Id, Name(scene.Metadata?.Name, "Unnamed scene"),
+                    HueResourceType.Scene)))
+            .ToArray();
+        var scenesByGroup = sceneResources.Where(scene => scene.Group is not null)
+            .ToLookup(scene => (scene.Group!.Rid, scene.Group.Rtype), scene => scene.Resource);
 
         return
         [
-            .. lights.Select(light => new AppHueResource(light.Id.ToString(),
-                Name(light.Metadata?.Name, "Unnamed light"), HueResourceType.Light,
-                lightGroups.TryGetValue(light.Id, out var memberships) ? memberships : [])),
-            .. roomList.Select(room => new AppHueResource(room.Id.ToString(),
-                Name(room.Metadata?.Name, "Unnamed room"), HueResourceType.Room)),
-            .. zoneList.Select(zone => new AppHueResource(zone.Id.ToString(),
-                Name(zone.Metadata?.Name, "Unnamed zone"), HueResourceType.Zone)),
-            .. scenes.Select(scene => new AppHueResource(scene.Id.ToString(),
-                Name(scene.Metadata?.Name, "Unnamed scene"), HueResourceType.Scene, sceneGroups[scene.Id]))
+            .. lightResources,
+            .. rooms.Select(room => MapGroup(room.Id, Name(room.Metadata?.Name, "Unnamed room"),
+                HueResourceType.Room, room.Children)),
+            .. zones.Select(zone => MapGroup(zone.Id, Name(zone.Metadata?.Name, "Unnamed zone"),
+                HueResourceType.Zone, zone.Children)),
+            .. sceneResources.Select(scene => scene.Resource)
         ];
 
-        void AddMembership(IEnumerable<(Guid Id, List<ResourceIdentifier> Children)> groupChildren, HueResourceType groupType)
+        HueResourceGroup MapGroup(Guid id, string name, HueResourceType type, IEnumerable<ResourceIdentifier>? children)
         {
-            foreach (var (groupId, children) in groupChildren)
-            {
-                if (!groupsById.TryGetValue(groupId, out var group) || group.Type != groupType)
-                {
-                    continue;
-                }
+            var memberLights = (children ?? []).SelectMany(GetLightIds).Distinct()
+                .SelectMany(lightId => lightsById[lightId]);
+            var memberScenes = scenesByGroup[(id, type.ToHueV2WireType())];
 
-                foreach (var child in children)
-                {
-                    if (child.Rtype == HueResourceType.Light.ToHueV2WireType())
-                    {
-                        AddLightGroup(child.Rid, group);
-                    }
-                    else if (child.Rtype == HueResourceType.Device.ToHueV2WireType() &&
-                             deviceById.TryGetValue(child.Rid, out var device))
-                    {
-                        // Rooms commonly list devices rather than light services. Follow the
-                        // device's service links to attach the group to the controllable light.
-                        foreach (var service in (device.Services ?? []).Where(service =>
-                                     service.Rtype == HueResourceType.Light.ToHueV2WireType()))
-                        {
-                            AddLightGroup(service.Rid, group);
-                        }
-                    }
-                }
-            }
+            return new HueResourceGroup(id, name, type, [.. memberLights, .. memberScenes]);
         }
 
-        void AddLightGroup(Guid lightId, HueResourceGroup group)
+        IEnumerable<Guid> GetLightIds(ResourceIdentifier child)
         {
-            if (!lightGroups.TryGetValue(lightId, out var memberships))
+            if (child.Rtype == HueResourceType.Light.ToHueV2WireType())
             {
-                lightGroups[lightId] = memberships = [];
+                return [child.Rid];
             }
 
-            if (memberships.All(existing => existing.Id != group.Id))
+            if (child.Rtype == HueResourceType.Device.ToHueV2WireType() &&
+                deviceById.TryGetValue(child.Rid, out var device))
             {
-                memberships.Add(group);
+                return (device.Services ?? [])
+                    .Where(service => service.Rtype == HueResourceType.Light.ToHueV2WireType())
+                    .Select(service => service.Rid);
             }
+
+            return [];
         }
     }
 

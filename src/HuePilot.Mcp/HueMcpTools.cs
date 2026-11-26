@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using HuePilot.Application.Hue;
 using HuePilot.Application.Hue.Models;
+using HuePilot.Application.Hue.Models.Intents;
 using ModelContextProtocol.Server;
 
 namespace HuePilot.Mcp;
@@ -43,15 +44,18 @@ public static class HueMcpTools
         try
         {
             var resources = await hueService.GetResourcesAsync(cancellationToken);
+            var groups = resources.OfType<HueResourceGroup>().ToArray();
             var selected = resources
-                .Where(resource => type == "all" || resource.Type.ToHueV2WireType().Equals(type, StringComparison.OrdinalIgnoreCase))
+                .Where(resource =>
+                    type == "all" || resource.Type.ToHueV2WireType().Equals(type, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(resource => resource.Type).ThenBy(resource => resource.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(resource => new
                 {
                     resource.Id,
                     resource.Name,
                     resource.Type,
-                    groups = (resource.Groups ?? []).Select(group => new { group.Id, group.Name, group.Type })
+                    groups = groups.Where(group => group.ContainsResource(resource.Id))
+                        .Select(group => new { group.Id, group.Name, group.Type })
                 });
             return JsonSerializer.Serialize(selected, new JsonSerializerOptions { WriteIndented = true });
         }
@@ -63,7 +67,8 @@ public static class HueMcpTools
 
     /// <summary>Gets the current power, brightness, and available xy color state for one Hue resource.</summary>
     [McpServerTool(Name = "get_hue_status", Title = "Get current Hue light status")]
-    [Description("Read-only. Gets the current on/off state, brightness, and xy color coordinates for a discovered light, room, or zone.")]
+    [Description(
+        "Read-only. Gets the current on/off state, brightness, and xy color coordinates for a discovered light, room, or zone.")]
     public static async Task<string> GetHueStatus(
         [Description("Exact ID of a discovered light, room, or zone from list_hue_resources.")] string resourceId,
         IHueService? hueService = null, CancellationToken cancellationToken = default)
@@ -75,11 +80,20 @@ public static class HueMcpTools
 
         try
         {
-            var target = (await hueService.GetResourcesAsync(cancellationToken)).SingleOrDefault(resource =>
-                resource.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase));
-            if (target is null)
+            if (!TryParseResourceId(resourceId, out var id))
+            {
+                return "That ID is not a currently discovered Hue resource. Use a UUID from list_hue_resources.";
+            }
+
+            var matches = FindResourcesById(await hueService.GetResourcesAsync(cancellationToken), id);
+            if (matches.Length == 0)
             {
                 return "That ID is not a currently discovered Hue resource. List resources and try again.";
+            }
+
+            if (matches is not [var target])
+            {
+                return "That resource ID was not unique. List resources and try again.";
             }
 
             if (target.Type is not (HueResourceType.Light or HueResourceType.Room or HueResourceType.Zone))
@@ -148,8 +162,7 @@ public static class HueMcpTools
         string color, IHueService? hueService = null, CancellationToken cancellationToken = default)
     {
         return ApplyAsync(resourceId, HueOperation.SetColor, null, color, null,
-            [HueResourceType.Light, HueResourceType.Room, HueResourceType.Zone], hueService,
-            cancellationToken);
+            [HueResourceType.Light, HueResourceType.Room, HueResourceType.Zone], hueService, cancellationToken);
     }
 
     /// <summary>Activates a discovered scene on the room or zone associated with that scene.</summary>
@@ -182,10 +195,15 @@ public static class HueMcpTools
 
         try
         {
+            if (!TryParseResourceId(resourceId, out var id))
+            {
+                return
+                    "Not applied: that ID is not a currently discovered Hue resource. Use a UUID from list_hue_resources.";
+            }
+
             // Refresh before every mutation so stale IDs or resources removed from the Bridge are rejected.
             var resources = await hueService.GetResourcesAsync(cancellationToken);
-            var matches = resources
-                .Where(resource => resource.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var matches = FindResourcesById(resources, id);
             if (matches.Length == 0)
             {
                 return "Not applied: that ID is not a currently discovered Hue resource. List resources and try again.";
@@ -202,23 +220,28 @@ public static class HueMcpTools
                 return $"Not applied: {operation} cannot be used on a {target.Type.ToHueV2WireType()}.";
             }
 
-            if (!string.IsNullOrWhiteSpace(requiredRoomId) && !(target.Groups ?? []).Any(group =>
-                    group.Id.Equals(requiredRoomId, StringComparison.OrdinalIgnoreCase)))
+            Guid? groupId = null;
+            if (requiredRoomId is not null)
             {
-                return
-                    "Not applied: that scene is not associated with the requested room or zone. List resources to see its group associations.";
+                if (!TryParseResourceId(requiredRoomId, out var roomId) ||
+                    FindResourcesById(resources, roomId) is not [HueResourceGroup group] ||
+                    !group.ContainsResource(target.Id))
+                {
+                    return
+                        "Not applied: that scene is not associated with the requested room or zone. List resources to see its group associations.";
+                }
+
+                groupId = roomId;
             }
 
             // Keep MCP writes on the same validation path as chat and tool-calling proposals.
-            var targetType = target.Type;
-
-            HueIntent intent = operation switch
+            TargetedHueIntent intent = operation switch
             {
-                HueOperation.TurnOn => new TurnOnIntent(target.Name, targetType),
-                HueOperation.TurnOff => new TurnOffIntent(target.Name, targetType),
-                HueOperation.SetBrightness => new SetBrightnessIntent(target.Name, targetType, brightnessPercent),
-                HueOperation.SetColor => new SetColorIntent(target.Name, targetType, color),
-                HueOperation.ActivateScene => new ActivateSceneIntent(target.Name, targetType),
+                HueOperation.TurnOn => new TurnOnIntent(target.Id),
+                HueOperation.TurnOff => new TurnOffIntent(target.Id),
+                HueOperation.SetBrightness => new SetBrightnessIntent(target.Id, brightnessPercent),
+                HueOperation.SetColor => new SetColorIntent(target.Id, color),
+                HueOperation.ActivateScene => new ActivateSceneIntent(target.Id, groupId),
                 _ => throw new InvalidOperationException("That Hue operation is not allowed.")
             };
             if (!HueActionValidator.TryCreate(intent, target, out var action, out var validationError))
@@ -242,6 +265,16 @@ public static class HueMcpTools
             return
                 "The Hue Bridge could not complete the action. Check Bridge connectivity and the resource's capabilities.";
         }
+    }
+
+    private static bool TryParseResourceId(string? value, out Guid id)
+    {
+        return Guid.TryParseExact(value, "D", out id) && value?.Length == 36 && id != Guid.Empty;
+    }
+
+    private static HueResource[] FindResourcesById(IReadOnlyList<HueResource> resources, Guid id)
+    {
+        return resources.Where(resource => resource.Id == id).Take(2).ToArray();
     }
 
     private static string BridgeUnavailable(HttpRequestException exception)
